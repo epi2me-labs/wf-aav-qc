@@ -1,0 +1,120 @@
+# examples describe hits for a specific genome type. There can be any number of examples which should all resolve to
+# the correct genome type. Each example is specified as a list with 1 to 3 alignments each from the same read
+# depending on how many alignments are required to fully specify the genome type.
+
+# In the test, the number of returned genometypes should be the same length as `examples`
+
+## Define the inital genome_types (can we rename to alignment category?) per alignment (
+#full_ss:
+#  description: "Full ssAAV"
+#  examples:
+#    - ["r1 flip_flop 30 2430 1  False"]
+#    - ["r2 flip_flop 10 2455 1  False"]
+#full_sc:
+#  description: "Full scAAV. Need alignemnts on both strands"
+#  examples:
+#    - ["r3 flip_flop 20 2400 1 False", "r3 flip_flop 10 2400 -1 False"]
+#gdm:
+#  description: "Genome deletion mutants"
+#  examples:
+
+#    itr1_start: 11
+#    itr1_end: 156
+#    itr2_start: 2324
+#    itr2_end: 2454
+
+#- genome_type: ""
+#  description: ""
+#  examples:
+#    - []
+#    - []
+
+# genome types for testing that Genome_type is correctly assigned to alignments based on alignemtn positions relative
+# to the ITR regions
+
+info:
+    - &almost_complete ["flip_flop 15 2449 1 0", "flip_flop 14 2448 -1 0"]
+
+genome_types:
+  - genome_type: "Almost complete"
+    examples: *almost_complete
+
+  - genome_type: "Partial 5` ITR and full 3` ITR"
+    examples:
+      - "flip_flop 22 2454 1 0"
+      - "flip_flop 155 2446 -1 0"
+
+  - genome_type: "Partial 5` ITR and partial 3` ITR"
+    examples:
+      - "flip_flop 21 2325 1 0"
+      - "flip_flop 155 2444 -1 0"
+  # Above these, chnage to the extremes of the conditions
+  - genome_type: "Full 5` ITR and partial 3` ITR"
+    examples:
+      - "flip_flop 11 2324 1 0"
+      - "flip_flop 20 2444 -1 0"
+
+  - genome_type: "Partial - no ITRs"
+    examples:
+      - "flip_flop 157 2324 1 0"
+
+  - genome_type: "Full 5` ITR and partial mid section"
+    examples:
+      - "flip_flop 11 157 1 0"
+      - "flip_flop 20 2323 -1 0"
+
+  - genome_type: "Partial mid section and full 3` ITR"
+    examples:
+      -  "flip_flop 157 2445 1 0"
+      - "flip_flop 2324 2453 -1 0"
+
+  - genome_type: "Partial 5` ITR and partial mid section"
+    examples:
+      - "flip_flop 21 157 1 0"
+      - "flip_flop 155 2323 -1 0"
+
+  - genome_type: "Partial mid section and partial 3` ITR"
+    examples:
+      - "flip_flop 157 2325 1 0"
+      - "flip_flop 2323 2443 -1 0"
+
+  - genome_type: "5` ITR"
+    examples:
+      -  "flip_flop 11 156 1 0"
+      - "flip_flop 50 100 -1 0"
+
+  - genome_type: "3` ITR"
+    examples:
+      - "flip_flop 2325 2454 1 0"  # Discrepency here. 2324 would be Partial mid. But should be 3`
+      - "flip_flop 2350 2450 -1 0"
+
+  - genome_type: "Vector backbone - 5` end"
+    examples:
+      - "flip_flop 2  100 1 0"
+      - "flip_flop 10 200 -1 0"
+
+  - genome_type: "Vector backbone - 3` end"
+    examples:
+      - "flip_flop 2454  2600 1 0"
+      - "flip_flop 2000 2455 -1 0"
+
+  - genome_type: "Backbone"
+    examples:
+      - "flip_flop 0  10 1 0"
+      - "flip_flop 2455 2600 -1 0"
+
+  - genome_type: "Extended ITR-ITR region"
+    examples:
+      - "flip_flop 5  2456 1 0"
+      - "flip_flop 0 2600 -1 0"
+
+
+assigned_genome_subtypes:
+  - subtype: "Full_ssAAV"
+    desc: "Single alignemnt type ..."
+    alignments:
+    # Wanted to reference the  &almost_complete, but YAML does not appera to allow indexing so the alignemnt
+    # infos are redifined here for now until I work out a better way
+      - ["flip_flop 15 2449 1 0", 'Almost complete']
+
+

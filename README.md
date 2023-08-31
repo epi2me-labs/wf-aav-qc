@@ -1,9 +1,16 @@
-# Workflow template
+# AAV QC workflow
 
 This repository contains a [nextflow](https://www.nextflow.io/) workflow
-template that can be used as the basis for creating new workflows.
+for use in the quality control of Adeno-associated virus (AAV) preps. 
+Features of this workflow inlude:
 
-> This workflow is not intended to be used by end users.
+* Generation of transgene reference orientations (flip/flop orientations)
+* Alignment of reads
+* ITR-ITR region coverage
+* Detection of contaminants
+* Detection of truncation hotspots
+* Categorisation of reads by genome type
+* Transgene reference consensus sequence generation
 
 
 
@@ -11,10 +18,22 @@ template that can be used as the basis for creating new workflows.
 
 ## Introduction
 
-This section of documentation typically contains an overview of the workflow in terms of motivation
-and bioinformatics methods, listing any key tools or algorithms employed, whilst also describing its
-range of use-cases and what a suitable input dataset should look like.
+This workflow generates a reference geneome which contains the following
+* Host reference genome (--ref_host) 
+* Transgene plasmid (--transgene_plasmid)
+* AAV helper plasmid (--ref_helper)
+* AAV rep-cap (--ref_rep_cap)
 
+The transgene plasmid ITR regions can exist in one of four orientations 
+(FLIP/FLOP, FLOP/FLIP, FLIP/FLIP, or FLOP/FLOP) (refernce). Each of these four orientations are generated from the
+given transgene plasmid sequence and added to the combined reference.
+
+Reads are mapped to the combined reference using [minimap2](https://github.com/lh3/minimap2) and alignment 
+statistics are then generated using [seqkit](https://bioinf.shenwei.me/seqkit/), 
+which are used in the rest of the workflow.
+
+Consensus sequence(s) are made using [clair3](https://github.com/HKU-BAL/Clair3) to generate VCF
+variant files from which [bcftools](https://samtools.github.io/bcftools/bcftools.html) creates a consensus sequence. 
 
 
 
@@ -32,24 +51,56 @@ the required software. Both methods are automated out-of-the-box provided
 either Docker or Singularity is installed.
 
 It is not required to clone or download the git repository in order to run the workflow.
-For more information on running EPI2ME Labs workflows [visit out website](https://labs.epi2me.io/wfindex).
+For more information on running EPI2ME Labs workflows [visit our website](https://labs.epi2me.io/wfindex).
 
 **Workflow options**
 
 To obtain the workflow, having installed `nextflow`, users can run:
 
 ```
-nextflow run epi2me-labs/wf-template --help
+nextflow run epi2me-labs/wf-aav-qc --help
 ```
 
 to see the options for the workflow.
+
+**Download demonstration data**
+
+A small test dataset is provided for the purposes of testing the workflow software,
+it can be downloaded using: (Not available yet)
+
+```
+wget -O demo_data.tar.gz \
+    https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-aav-qc/demo_data.tar.gz
+tar -xzvf demo_data.tar.gz
+```
+
+The workflow can be run with the demo data as flollows: (to complete)
+```
+OUTPUT=output
+nextflow run epi2me-labs/wf-aav-qc \
+    -w ${OUTPUT}/workspace \
+    -profile standard \
+    --fastq demo_data/fastq \
+    --ref_host\
+    --ref_helper \
+    --ref_rep_cap \
+    --transgene_plasmid \
+    --transgene_annotation \
+    --basecaller_cfg 'dna_r10.4.1_e8.2_400bps_sup@v3.5.2'  \
+    --out_dir ${OUTPUT}
+```
 
 **Workflow outputs**
 
 The primary outputs of the workflow include:
 
-* a simple text file providing a summary of sequencing reads,
 * an HTML report document detailing the primary findings of the workflow.
+* a simple text file providing a summary of sequencing reads.
+* a TSV file detailing the genome type read assignemnts.
+* A consensus sequence generated 
+
+
+
 
 
 

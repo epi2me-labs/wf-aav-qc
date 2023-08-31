@@ -128,9 +128,13 @@ class NfcoreSchema {
 
         // Collect expected parameters from the schema
         def expectedParams = []
+        def enums = [:]
         for (group in schemaParams) {
             for (p in group.value['properties']) {
                 expectedParams.push(p.key)
+                if (group.value['properties'][p.key].containsKey('enum')) {
+                    enums[p.key] = group.value['properties'][p.key]['enum']
+                }
             }
         }
 
@@ -178,8 +182,8 @@ class NfcoreSchema {
             println ''
             log.error 'ERROR: Validation of pipeline parameters failed!'
             JSONObject exceptionJSON = e.toJSON()
-            printExceptions(exceptionJSON, params_json, log)
-            println ''
+            HashSet<String> observed_exceptions = []
+            printExceptions(exceptionJSON, params_json, log, enums, raw_schema, observed_exceptions)
             has_error = true
         }
 
@@ -192,7 +196,7 @@ class NfcoreSchema {
                 warn_msg = warn_msg + "\n* --${unexpectedParam}: ${params[unexpectedParam].toString()}"
             }
             log.warn warn_msg
-            log.info "- ${colors.dim}Ignore this warning: params.schema_ignore_params = \"${unexpectedParams.join(',')}\" ${colors.reset}"
+            log.info "${colors.dim}- Ignore this warning: params.schema_ignore_params = \"${unexpectedParams.join(',')}\" ${colors.reset}"
             println ''
         }
 
@@ -212,7 +216,9 @@ class NfcoreSchema {
         output        += "  ${colors.cyan}${command}${colors.reset}\n\n"
         Map params_map = paramsLoad(getSchemaPath(workflow, schema_filename=schema_filename))
         Integer max_chars  = paramsMaxChars(params_map) + 1
-        Integer desc_indent = max_chars + 14
+        Integer type_pad = 10
+        String param_prefix = "  --"
+        Integer desc_indent = max_chars + type_pad + param_prefix.length()
         Integer dec_linewidth = 160 - desc_indent
         for (group in params_map.keySet()) {
             Integer num_params = 0
@@ -223,10 +229,11 @@ class NfcoreSchema {
                     num_hidden += 1
                     continue;
                 }
-                def type = '[' + group_params.get(param).type + ']'
                 def description = group_params.get(param).description
                 def defaultValue = group_params.get(param).default ? " [default: " + group_params.get(param).default.toString() + "]" : ''
                 def description_default = description + colors.dim + defaultValue + colors.reset
+                def param_enum = group_params.get(param).get("enum")
+                def type = param_enum ? "[choice]" : "[${group_params.get(param).type}]"
                 // Wrap long description texts
                 // Loosely based on https://dzone.com/articles/groovy-plain-text-word-wrap
                 if (description_default.length() > dec_linewidth){
@@ -243,7 +250,11 @@ class NfcoreSchema {
                     olines += oline
                     description_default = olines.join("\n" + " " * desc_indent)
                 }
-                group_output += "  --" +  param.padRight(max_chars) + colors.dim + type.padRight(10) + colors.reset + description_default + '\n'
+                group_output += param_prefix + param.padRight(max_chars) + colors.dim + type.padRight(type_pad) + colors.reset + description_default + '\n'
+                // Enumerate enumerations
+                for (choice in param_enum) {
+                    group_output += (" " * desc_indent) + "* ${choice}\n"
+                }
                 num_params += 1
             }
             group_output += '\n'
@@ -350,16 +361,150 @@ class NfcoreSchema {
         return output
     }
 
+    // Traverse the raw_schema to resolve a $ref, returning a JSONObject or JSONArray.
+    private static def getSchemaLocation(raw_schema, schema_components) {
+        // a quick search did not reveal how to resolve a $ref inside a
+        // JSONObject so we'll go with traversing it ourselves!
+        def head = raw_schema
+        for (component in schema_components) {
+            if (component == '#') {
+                continue
+            }
+            else if (component.isNumber()) {
+                // assume numeric components are indexing an array
+                head = head[component as int]
+            }
+            else {
+                // otherwise grab by key
+                head = head[component]
+            }
+        }
+        return head
+    }
+
+    // Return a map of dependencies for a path in a schema, that relate to a key that is known to be missing.
+    // Each key in the map is a parameter that has been switched on and has a requirement on the missing key.
+    // The value of each key in the map is a list of all parameters that are required by the corresponding key.
+    private static HashMap<String, String> getSchemaDependencies(raw_schema, schema_components, missing_key) {
+        def head = getSchemaLocation(raw_schema, schema_components[1..-1] + 'dependencies')
+        HashMap<String, String> requirements = []
+        for (key in head.keySet()) {
+            if (head[key].contains(missing_key)) {
+                requirements[key] = head[key]
+            }
+        }
+        return requirements
+    }
+
+    // Return a list of all required parameters that are adjacent to a given path in a schema
+    private static ArrayList getSchemaRequirements(raw_schema, schema_components) {
+        def head = getSchemaLocation(raw_schema, schema_components[1..-2])
+        ArrayList requirements = []
+        for (entry in head) {
+            // this could be an allOf with more allOf/oneOf/anyOf inside
+            // we'll ignore anything that isn't a required key
+            if (entry.has("required")) {
+                requirements += entry["required"]
+            }
+        }
+        return requirements
+    }
+
     //
     // Loop over nested exceptions and print the causingException
     //
-    private static void printExceptions(ex_json, params_json, log) {
+    private static void printExceptions(ex_json, params_json, log, enums, raw_schema, observed_exceptions) {
         def causingExceptions = ex_json['causingExceptions']
         if (causingExceptions.length() == 0) {
-            def m = ex_json['message'] =~ /required key \[([^\]]+)\] not found/
-            // Missing required param
-            if (m.matches()) {
-                log.error "* Missing required parameter: --${m[0][1]}"
+            // Missing required param...
+            if (ex_json["keyword"] == "required") {
+                def m = ex_json['message'] =~ /required key \[([^\]]+)\] not found/
+                // ...but what sort of required param
+                ArrayList schema_components = ex_json['schemaLocation'].split('/')
+                if (schema_components[-1].isNumber()) {
+                    // schemaLocation ends in array position, indicating use of
+                    // xOf in the schema. this is some sort of complex definition
+                    String schema_error_location = schema_components[1..-2].join('.')
+                    String composition_type = schema_components[-2]
+                    if (schema_error_location in observed_exceptions){
+                        return
+                    }
+                    // try to check the schema to get the adjacent requirements
+                    ArrayList requirement_group = []
+                    try {
+                        requirement_group = getSchemaRequirements(raw_schema, schema_components)
+                    }
+                    catch (groovy.lang.MissingPropertyException e) {}
+                    if (requirement_group.size() == 0) {
+                        // fall back to old error if we cannot read the schema
+                        log.error "* Missing required parameter: --${m[0][1]}"
+                        return
+                    }
+                    else if (composition_type == "allOf") {
+                        // similarly, use the old error for all members of an allOf
+                        for (choice in requirement_group) {
+                            log.error "* Missing required parameter: --${choice}"
+                        }
+                        return
+                    }
+                    // construct an appropriate message for the other types of composition
+                    String stderr_msg_prefix = "* Bad parameter configuration. "
+                    if (composition_type == "oneOf") {
+                        stderr_msg_prefix += "You must select only one option of:"
+                    }
+                    else if (composition_type == "anyOf") {
+                        stderr_msg_prefix += "You must select at least one of:"
+                    }
+                    ArrayList stderr_msg = [stderr_msg_prefix]
+                    // glue choices to error
+                    for (choice in requirement_group) {
+                        stderr_msg += "    --${choice}"
+                    }
+                    log.error stderr_msg.join('\n')
+                    // suppress similar warnings
+                    observed_exceptions.add(schema_error_location)
+                }
+                else {
+                    // boring simple required
+                    log.error "* Missing required parameter: --${m[0][1]}"
+                }
+            }
+            // Missing dependent param
+            else if (ex_json['keyword'] == "dependencies") {
+                def m = ex_json['message'] =~ /property \[([^\]]+)\] is required/
+                HashMap<String, String> dependent_group = []
+                ArrayList schema_components = ex_json['schemaLocation'].split('/')
+                // try to check the schema to get the dependencies
+                try {
+                    dependent_group = getSchemaDependencies(raw_schema, schema_components, m[0][1])
+                }
+                catch (groovy.lang.MissingPropertyException e) {}
+                if (dependent_group.size() == 0) {
+                    // fall back to old error if we cannot read the schema
+                    log.error "* Missing required parameter: --${m[0][1]}"
+                    return
+                }
+                // we don't actually get told which parameter triggered the dependency
+                //   only the name of the parameter that is actually missing.
+                // dependent_group will contain a list of triggering keys and their
+                // deps so we can print them all out for the user.
+                for (trigger_key in dependent_group.keySet()) {
+                    String schema_error_location = "${ex_json.schemaLocation}/dependencies/${trigger_key}"
+                    if (schema_error_location in observed_exceptions){
+                        return
+                    }
+                    String stderr_msg_prefix = "* Missing parameter(s) that are required by --${trigger_key}:"
+                    ArrayList stderr_msg = [stderr_msg_prefix]
+                    // list dependencies of trigger_key that are not in the params_json
+                    for (dep_key in dependent_group[trigger_key]) {
+                        if (!params_json.has(dep_key)) {
+                            stderr_msg += "    --${dep_key}"
+                        }
+                    }
+                    log.error stderr_msg.join('\n')
+                    // suppress similar warnings
+                    observed_exceptions.add(schema_error_location)
+                }
             }
             // Other base-level error
             else if (ex_json['pointerToViolation'] == '#') {
@@ -369,11 +514,20 @@ class NfcoreSchema {
             else {
                 def param = ex_json['pointerToViolation'] - ~/^#\//
                 def param_val = params_json[param].toString()
-                log.error "* --${param}: ${ex_json['message']} (${param_val})"
+                if (ex_json['message'] =~ /.*not a valid enum value.*/) {
+                    ArrayList stderr_msg = ["* --${param}: ${param_val} is not a valid choice, pick one of:"]
+                    for (choice in enums[param]) {
+                        stderr_msg += "    - ${choice}"
+                    }
+                    log.error stderr_msg.join('\n') // avoid silly new lines between choices by printing one string
+                }
+                else {
+                    log.error "* --${param}: ${ex_json['message']} (${param_val})"
+                }
             }
         }
         for (ex in causingExceptions) {
-            printExceptions(ex, params_json, log)
+            printExceptions(ex, params_json, log, enums, raw_schema, observed_exceptions)
         }
     }
 

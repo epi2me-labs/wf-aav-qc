@@ -1,31 +1,55 @@
 #!/usr/bin/env nextflow
 
-// Developer notes
-//
-// This template workflow provides a basic structure to copy in order
-// to create a new workflow. Current recommended practices are:
-//     i) create a simple command-line interface.
-//    ii) include an abstract workflow scope named "pipeline" to be used
-//        in a module fashion
-//   iii) a second concrete, but anonymous, workflow scope to be used
-//        as an entry point when using this workflow in isolation.
-
 import groovy.json.JsonBuilder
 nextflow.enable.dsl = 2
 
-include { ingress } from './lib/ingress'
+include { fastq_ingress; xam_ingress } from './lib/ingress'
 
 OPTIONAL_FILE = file("$projectDir/data/OPTIONAL_FILE")
 
-process getVersions {
-    label "wf_common"
+process medakaVersion {
+    label "medaka"
     cpus 1
     output:
+        path "medaka_version.txt"
+    """
+    medaka --version | sed 's/ /,/' >> "medaka_version.txt"
+    """
+}
+
+
+process getVersions {
+    label "wf_aav"
+    cpus 1
+    input:
+        path "input_versions.txt"
+    output:
         path "versions.txt"
+
     script:
     """
     python -c "import pysam; print(f'pysam,{pysam.__version__}')" >> versions.txt
-    fastcat --version | sed 's/^/fastcat,/' >> versions.txt
+    minimap2 --version | sed 's/^/minimap2,/' >> versions.txt
+    seqkit version | head -n 1 | sed 's/ /,/' >> versions.txt
+    samtools --version | head -n 1 | sed 's/ /,/' >> versions.txt
+    bcftools -v | head -n 1 |head -n 1 | sed 's/ /,/' >> versions.txt
+    bedtools --version | head -n 1 | sed 's/ /,/' >> versions.txt
+    python -c "import polars; print(f'polars,{polars.__version__}')"
+    """
+}
+
+
+process get_ref_names {
+    label "wf_aav"
+    cpus 1
+    input:
+        path("transgene_plasmid.fa")
+    output:
+        path("transgene_id.txt", emit: transgene_name)
+    script:
+    def transgene_name = ''
+    """
+    seqkit seq -n transgene_plasmid.fa -o transgene_id.txt
     """
 }
 
@@ -43,36 +67,46 @@ process getParams {
     """
 }
 
-process make_transgene_plasmid_with_ITR_ITR_orientations_reference {
+
+process mask_transgene_reference {
+    /*
+    Mask the variable regions within the transgene cassette ITRs
+    */
     label "wf_aav"
     cpus 1
+    memory '1 GB'
     input:
         input:
             path("aav_transgene_plasmid.fa")
-            path("transgene_annotation.bed")
         output:
-            path("transgene_plasmid_ITR-ITR_orientations.fasta")
+            path("itr_masked_transgene_plasmid.fasta"),
+            emit: masked_transgene_plasmid
     """
-    workflow-glue make_ITR_orientation_reference \
-        --fasta "aav_transgene_plasmid.fa" \
-        --bed "transgene_annotation.bed" \
-        --outfile "transgene_plasmid_ITR-ITR_orientations.fasta"
+    touch hh
+    workflow-glue mask_itrs \
+        --transgene_plasmid_fasta "aav_transgene_plasmid.fa" \
+        --itr_locations $params.itr1_start $params.itr1_end $params.itr2_start $params.itr2_end \
+        --outfile "itr_masked_transgene_plasmid.fasta"
     """
 }
 
+
 process make_combined_reference {
+    /*
+    Make a reference file containing the sequences of the host reference and the plasmids used in the rAAV prep.
+    */
     label "wf_aav"
-    cpus 1
+    cpus 2
     input:
           path(ref_host)
           path("ref_helper.fa")
           path("ref_rep_cap.fa")
-          path("transgene_plasmid_ITR-ITR_orientations.fa")
+          path("masked_transgene_plasmid.fa")
     output:
           path('combined_reference.fa.gz'),
           emit: combined_reference
     script:
-    def compress_ref = (ref_host.getExtension() == 'gz') ? 'true':'false'
+        def compress_ref = (ref_host.getExtension() == 'gz') ? 'true':'false'
     """
     if [[ $compress_ref == 'true' ]]; then
         cp $ref_host combined_reference.fa.gz
@@ -80,16 +114,20 @@ process make_combined_reference {
         cat $ref_host | gzip > combined_reference.fa.gz
     fi
 
-    cat transgene_plasmid_ITR-ITR_orientations.fa \
+    cat masked_transgene_plasmid.fa \
         ref_helper.fa \
         ref_rep_cap.fa \
         | gzip >> combined_reference.fa.gz
     """
+
 }
+
 
 process map_to_combined_reference {
     label "wf_aav"
-    cpus params.mapping_threads
+    // two extra threads for samtools
+    cpus {params.threads}
+    memory '16 GB'
     input:
         tuple val(meta),
               path(input)
@@ -104,18 +142,20 @@ process map_to_combined_reference {
               emit: bam_info
 
     script:
-        def usebam = false
-        if (input.getExtension() in ['ubam', 'bam']){
-            usebam = true
-        }
+    def usebam = false
+    if (params.bam){
+        usebam = true
+    }
+    // Keep two threads from samtols
+    def mm2_threads = Math.max(task.cpus - 2, 1)
     """
     if [[ "$usebam" == "true" ]]; then
         samtools fastq "$input" \
-        | minimap2 -ax map-ont -secondary=no -t $task.cpus \
+        | minimap2 -ax map-ont --secondary=no -t ${mm2_threads} \
             combined_reference.fa.gz - \
         | samtools sort -o ${meta['alias']}_align.bam -
     else
-        minimap2 -ax map-ont -secondary=no -t $task.cpus \
+        minimap2 -ax map-ont --secondary=no -t ${mm2_threads} \
             combined_reference.fa.gz "$input" \
         | samtools sort -o ${meta['alias']}_align.bam -
     fi
@@ -124,21 +164,30 @@ process map_to_combined_reference {
     """
 }
 
+
 process truncations {
+    /*
+    Filter alignments for those that start and end within the ITR-ITR cassette.
+    */
     label "wf_aav"
     cpus 1
+    memory '1 GB'
+
     input:
         tuple val(meta),
               path("bam_info.tsv")
-        path("annotation.bed")
+        path("transgene_plasmid.fa")
+        val(transgene_plasmid_name)
 
     output:
-        tuple val(meta),
-              path('truncations.tsv')
+        path('truncations.tsv'),
+        emit: locations
+    script:
     """
     workflow-glue truncations \
         --bam_info bam_info.tsv \
-        --annotation annotation.bed \
+        --itr_range $params.itr1_start $params.itr2_end \
+        --transgene_plasmid_name "${transgene_plasmid_name}" \
         --outfile truncations.tsv \
         --sample_id "$meta.alias"
     """
@@ -146,209 +195,203 @@ process truncations {
 
 
 process contamination {
+    /*
+    Make plot data detailing the frequency of reads mapping to various references.
+    */
     label "wf_aav"
     cpus 1
+    memory '3 GB'
     input:
         tuple val(meta),
               path("bam_info.tsv"),
               path('read_stats/')
+        path('transgene.fa')
         path('helper.fa')
         path('rep_cap.fa')
+        path('host_cell_line.fa')
 
     output:
         path('contam_class_counts.tsv'), emit: contam_class_counts
-        path('contam_read_lengths.tsv'), emit: contam_read_lengths
 
     """
-    touch s
-    # Get all the read ids - explain why
-    if [[ -f read_stats/bamstats/per-read-stats.tsv ]]; then
-        cut -f1 read_stats/bamstats/per-read-stats.tsv | tail -n +2 > read_ids.tsv
-    else
-        cut -f1 read_stats/fastcat_stats/per-read-stats.tsv | tail -n +2 > read_ids.tsv
-    fi
+    touch p
+    # Get read IDs from either bamstats or fastcat stats file.
+    zcat < read_stats/*/*stats.tsv.gz | cut -f1 | tail -n +2 > read_ids.tsv
 
     workflow-glue contamination \
         --bam_info bam_info.tsv \
         --sample_id "$meta.alias" \
+        --transgene_fasta transgene.fa \
         --helper_fasta helper.fa \
         --rep_cap_fasta rep_cap.fa \
+        --host_fasta  host_cell_line.fa \
         --read_ids read_ids.tsv \
-        --contam_class_counts contam_class_counts.tsv \
-        --contam_read_lengths contam_read_lengths.tsv
+        --contam_class_counts contam_class_counts.tsv
     """
 }
 
 
 process aav_structures {
     label "wf_aav"
-    cpus params.mapping_threads
+    cpus params.threads
+    // In testing of 150k reads, this process was ~ 500 MB peak RSS. Most of that was
+    // polars overhead, but we'll add some more to be sure
+    memory '2 GB'
     input:
         tuple val(meta),
               path("bam_info.tsv")
-        path("annotation.bed")
+        path("transgene_plasmid.fa")
+        val(transgene_plasmid_name)
     output:
-        tuple val(meta),
-              path("*_aav_structure_counts.tsv"),
+        path("aav_structure_counts.tsv"),
               emit: structure_counts
         tuple val(meta),
               path("*_aav_per_read_info.tsv"),
               emit: per_read_info
-
     """
     export POLARS_MAX_THREADS=${task.cpus}
     workflow-glue aav_structures \
         --bam_info bam_info.tsv \
-        --annotation annotation.bed \
-        --output_plot_data '${meta.alias}_aav_structure_counts.tsv' \
+        --itr_locations \
+            $params.itr1_start $params.itr1_end $params.itr2_start $params.itr2_end \
+        --output_plot_data 'aav_structure_counts.tsv' \
         --output_per_read '${meta.alias}_aav_per_read_info.tsv' \
-        --sample_id "${meta.alias}"
+        --sample_id "${meta.alias}" \
+        --transgene_plasmid_name "${transgene_plasmid_name}" \
+        --itr_fl_threshold ${params.itr_fl_threshold} \
+        --itr_backbone_threshold ${params.itr_backbone_threshold} \
+        --symmetry_threshold ${params.symmetry_threshold}
     """
 }
 
 
 process itr_coverage {
+    /*
+    Make data to plot coverage at each of the four ITR-ITR cassette orientation references.
+    */
     label "wf_aav"
-    cpus 4
+    memory '500 MB'
+    cpus 3
     input:
         tuple val(meta),
               path("align.bam"),
               path("align.bam.bai")
-        path("annotation.bed")
+        path("transgene_plasmid.fa")
+        val(transgene_plasmid_name)
     output:
-        tuple val(meta),
-              path('itr_coverage_trimmed.tsv')
+        path('itr_coverage_trimmed.tsv')
     """
-    echo -e "ref\tpos\tdepth\tstrand\tsample_id" > itr_coverage.tsv
-
     # mapping to forward strand
-    samtools view -h -F 16 -h align.bam \
-        | awk '\$1 ~ "^@" || \$3 == "flip_flip" || \$3 == "flip_flop" || \$3== "flop_flip" || \$3 == "flop_flop"' \
-        | samtools depth -a -@ $task.cpus - | sed s'/\$/\tforward\t$meta.alias/' >>  itr_coverage.tsv
+    samtools view -h -F 16 -h align.bam ${transgene_plasmid_name} \
+        | samtools depth -a -@ 1 - | sed s'/\$/\tforward\t$meta.alias/' >  itr_coverage_forward.tsv
 
     # mapping to reverse strand
-    samtools view -h -f 16 -h align.bam \
-        | awk '\$1 ~ "^@" || \$3 == "flip_flip" || \$3 == "flip_flop" || \$3== "flop_flip" || \$3 == "flop_flop"' \
-        | samtools depth -a -@ $task.cpus - | sed s'/\$/\treverse\t$meta.alias/' >> itr_coverage.tsv
+    samtools view -h -f 16 -h align.bam ${transgene_plasmid_name} \
+        | samtools depth -a -@ 1 - | sed s'/\$/\treverse\t$meta.alias/' > itr_coverage_reverse.tsv
 
-    # Trim the depth TSV to ITR-ITR regions only (+/- 3bp)
-    workflow-glue coverage \
-        --annotation annotation.bed \
-        --itr_coverage itr_coverage.tsv \
-        --output itr_coverage_trimmed.tsv
+    # Trim the depth TSV to ITR-ITR regions only (+/- 10bp so that the expected dropoff either side is visible)
+    echo -e "ref\tpos\tdepth\tstrand\tsample_id" > itr_coverage_trimmed.tsv
+    cat itr_coverage_forward.tsv itr_coverage_reverse.tsv \
+        | awk  '\$2 > ${params.itr1_start} - 10 && \$2 < ${params.itr2_end} + 10' >> itr_coverage_trimmed.tsv
     """
 }
 
-process lookup_clair3_model {
+
+process lookup_medaka_variant_model {
     label "wf_aav"
     cpus 1
+    memory '500 MB'
     input:
         path("lookup_table")
         val basecall_model
     output:
-        path("model/")
+        stdout
     shell:
     '''
-    clair3_model=$(resolve_clair3_model.py lookup_table '!{basecall_model}')
-    cp -r ${CLAIR_MODELS_PATH}/${clair3_model} model
-    echo "Basecall model: !{basecall_model}"
-    echo "Clair3 model  : ${clair3_model}"
+    medaka_model=$(workflow-glue resolve_medaka_model lookup_table '!{basecall_model}' "medaka_variant")
+    echo $medaka_model
     '''
 }
 
 
-process split_by_plasmid_orientation {
-    // Get transgene plasmid alignemnts + plasmid references from specific orientations
+process medaka_consensus {
+    /*
+    Generate a consensus sequence and a VCF with the variant sites from alignments mapping to the transgene plasmid.
+    */
+    label "medaka"
+    cpus 4
+    memory '2 GB'
+    input:
+        tuple val(meta),
+              path("align.bam"),
+              path("align.bam.bai")
+        val(medaka_model)
+        path('transgene_plasmid.fa')
+        val(transgene_plasmid_name)
+
+    output:
+        tuple val(meta),
+              path("${meta.alias}.transgene_plasmsid_consensus.fasta.gz"),
+              emit: consensus
+       tuple val(meta),
+              path("${meta.alias}.transgene_plasmsid_sorted.vcf.gz"),
+              emit: variants
+    script:
+        def model = medaka_model
+    """
+    # Extract reads mapping to transgene plasmid
+    samtools view align.bam -bh "${transgene_plasmid_name}" > transgene_reads.bam
+    samtools index transgene_reads.bam
+
+    echo ${model}
+    echo ${medaka_model}
+
+    medaka consensus transgene_reads.bam "consensus_probs.hdf" \
+        --threads 2 --model ${model}
+
+    medaka stitch \
+        --threads 2 \
+         consensus_probs.hdf \
+         transgene_plasmid.fa \
+         "${meta.alias}.transgene_plasmsid_consensus.fasta"
+    bgzip "${meta.alias}.transgene_plasmsid_consensus.fasta"
+
+    medaka variant \
+         transgene_plasmid.fa \
+         consensus_probs.hdf \
+         "transgene_plasmid.vcf"
+
+   bcftools sort transgene_plasmid.vcf > "${meta.alias}.transgene_plasmsid_sorted.vcf.gz"
+    """
+}
+
+
+process combine_stats {
     label "wf_aav"
     cpus 1
     input:
         tuple val(meta),
-              path("align.bam"),
-              path("align.bam.bai"),
-              val(orientation)
-        path "combined_reference.fa.gz"
-    output:
-        tuple val(meta),
-              val(orientation),
-              path('transgene_plasmid_orientation.fa'),
-              path('itr_orientation.bam'),
-              path('itr_orientation.bam.bai'),
-              emit: ori_data
+              path('per-read-stats.tsv.gz')
+        output:
+            path('stats.tsv')
     """
-    samtools view align.bam -bh $orientation > itr_orientation.bam
-    samtools index itr_orientation.bam
-    seqkit grep -r -p ^$orientation combined_reference.fa.gz -o transgene_plasmid_orientation.fa
-    """
-}
-
-
-
-process call_variants {
-    label "clair3"
-    cpus params.mapping_threads
-    input:
-        tuple val(meta),
-              val(orientation),
-              path("transgene_plasmid_orientation.fa"),
-              path("itr_orientation.bam"),
-              path("itr_orientation.bam.bai"),
-              path('clair3_model')
-    output:
-        tuple val(meta),
-              val(orientation),
-              path("merge_output.vcf.gz"),
-              path("transgene_plasmid_orientation.fa"),
-              emit: vcf
-    """
-    faidx transgene_plasmid_orientation.fa
-
-    run_clair3.sh \
-        --bam_fn itr_orientation.bam \
-        --ref_fn transgene_plasmid_orientation.fa \
-        --model_path "$clair3_model" \
-        --var_pct_full=1 \
-        --ref_pct_full=1 \
-        --include_all_ctgs \
-        --no_phasing_for_fa \
-        --threads $task.cpus --chunk_size=1000 \
-        --platform ont \
-        -o .
-    """
-}
-
-process make_consensus {
-    label "wf_aav"
-    cpus 4
-    input:
-        tuple val(meta),
-              val(orientation),
-              path('variants.vcf.gz'),
-              path("transgene_plasmid_orientation.fa")
-    output:
-        tuple val(meta),
-              path('transgene_plasmid_consensus_*.fa'),
-              emit: consensus_fasta
-    """
-    bcftools index -f variants.vcf.gz
-	bcftools consensus \
-	    --mark-ins lc \
-	    --mark-snv lc \
-	    -o "transgene_plasmid_consensus_${orientation}.fa" \
-	    -f transgene_plasmid_orientation.fa \
-	    variants.vcf.gz
+    gunzip -c per-read-stats.tsv.gz |
+        # Add sample_id column
+        sed "s/\$/\t${meta.alias}/" > stats.tsv
     """
 }
 
 
 process makeReport {
     label "wf_aav"
+    cpus 1
+    memory '2 GB'
     input:
         val metadata
-        path per_read_stats
+        path 'per_read_stats.tsv'
         path 'truncations.tsv'
         path 'itr_coverage.tsv'
         path 'contam_class_counts.tsv'
-        path 'contam_read_lengths.tsv'
         path 'structure_counts.tsv'
         path "versions/*"
         path "params.json"
@@ -357,19 +400,16 @@ process makeReport {
     script:
         String report_name = "wf-aav-qc-report.html"
         String metadata = new JsonBuilder(metadata).toPrettyString()
-        String stats_args = \
-            (per_read_stats.name == OPTIONAL_FILE.name) ? "" : "--stats $per_read_stats"
     """
     echo '${metadata}' > metadata.json
     workflow-glue report $report_name \
         --versions versions \
-        $stats_args \
+        --stats per_read_stats.tsv \
         --params params.json \
         --metadata metadata.json \
         --truncations truncations.tsv \
         --itr_coverage itr_coverage.tsv \
         --contam_class_counts contam_class_counts.tsv \
-        --contam_read_lengths contam_read_lengths.tsv \
         --aav_structures structure_counts.tsv
     """
 }
@@ -398,96 +438,92 @@ process output {
 // workflow module
 workflow pipeline {
     take:
-        reads
+        samples
         ref_host
         ref_helper
         ref_rep_cap
-        ref_transgene_plamid
-        transgene_plasmid_annotation
-        clair3_model
+        ref_transgene_plasmid
     main:
-        per_read_stats = reads.map {
-            it[2] ? it[2].resolve('per-read-stats.tsv') : null
+        per_read_stats = samples.flatMap {
+            it[2] ? file(it[2].resolve('*read*.tsv.gz')) : null
         }
-            | collectFile ( keepHeader: true )
-            | ifEmpty ( OPTIONAL_FILE )
-        software_versions = getVersions()
-        workflow_params = getParams()
-        metadata = reads.map { it[0] }.toList()
-//         reads_with_key = reads.map {[it[0].alias, *it]}
-//         aav_meta_with_key = aav_meta.map {[it['barcode'], it ]} // Should we get user to use alias here?
 
-        // Create a channel which gives tuples with the following contents:
-        // 0: metadata map
-        // 1: fastq
-        // 2: fastcat stats
-        // 3: aav_sample_metamap
-//         sample_data = reads_with_key
-//             | join(aav_meta_with_key)
-//             // Now remove the barcode prefix merge key
-//             | map {it -> it[1..-1]}
-        make_transgene_plasmid_with_ITR_ITR_orientations_reference(
-            ref_transgene_plamid,
-            transgene_plasmid_annotation
-        )
+        get_ref_names(ref_transgene_plasmid)
+        transgene_plasmid_name = get_ref_names.out.transgene_name.splitCsv().flatten().first()
+
+        medaka_version = medakaVersion()
+        software_versions = getVersions(medaka_version)
+
+        workflow_params = getParams()
+        metadata = samples.map { it[0] }.toList()
+
+        mask_transgene_reference(ref_transgene_plasmid)
 
         make_combined_reference(
             ref_host,
             ref_helper,
             ref_rep_cap,
-            make_transgene_plasmid_with_ITR_ITR_orientations_reference.out
+            mask_transgene_reference.out.masked_transgene_plasmid
         )
 
         map_to_combined_reference(
-            reads.map {meta, reads, stats -> [meta, reads]},
-            make_combined_reference.out
+            samples.map {meta, reads, stats -> [meta, reads]},
+            make_combined_reference.out.combined_reference
         )
 
         truncations(
             map_to_combined_reference.out.bam_info,
-            transgene_plasmid_annotation
+            ref_transgene_plasmid,
+            transgene_plasmid_name
         )
 
         itr_coverage(
             map_to_combined_reference.out.bam,
-            transgene_plasmid_annotation
+            ref_transgene_plasmid,
+            transgene_plasmid_name
         )
 
         contamination(
             map_to_combined_reference.out.bam_info
-            | join(reads.map {meta, fastq, stats -> [meta, stats]}),
-            ref_helper, ref_rep_cap
+            | join(samples.map {meta, fastq, stats -> [meta, stats]}),
+            ref_transgene_plasmid, ref_helper, ref_rep_cap, ref_host
         )
 
         aav_structures(
             map_to_combined_reference.out.bam_info,
-            transgene_plasmid_annotation
+            ref_transgene_plasmid,
+            transgene_plasmid_name
         )
 
-        split_by_plasmid_orientation(
-            map_to_combined_reference.out.bam
-            | combine(channel.from('flip_flip', 'flip_flop', 'flop_flip', 'flop_flop')),
-            make_combined_reference.out.combined_reference
-        )
+       if (params.medaka_model) {
+            log.warn "Overriding Medaka model with ${params.medaka_model}."
+            medaka_model = params.medaka_model
+       } else {
+            Path lookup_table = file(
+                "${projectDir}/data/medaka_models.tsv", checkIfExists: true)
+            medaka_model = lookup_medaka_variant_model(lookup_table, params.basecaller_cfg)
+       }
 
-        call_variants(
-            split_by_plasmid_orientation.out.ori_data
-            | combine(clair3_model)
+        medaka_consensus(
+            map_to_combined_reference.out.bam,
+            medaka_model,
+            ref_transgene_plasmid,
+            transgene_plasmid_name
         )
-
-        make_consensus(call_variants.out.vcf)
 
         report = makeReport(
-            metadata, per_read_stats,
-            truncations.out.collectFile(keepHeader: true),
+            metadata,
+            samples.map { meta, reads, stats ->
+            stats ? [meta, file(stats.resolve('*read*.tsv.gz'))] : [null, null]
+        } | combine_stats | collectFile(keepHeader: true),
+
+            truncations.out.locations.collectFile(keepHeader: true),
             itr_coverage.out.collectFile(keepHeader: true),
             contamination.out.contam_class_counts.collectFile(keepHeader: true),
-            contamination.out.contam_read_lengths.collectFile(keepHeader: true),
             aav_structures.out.structure_counts.collectFile(keepHeader: true),
             software_versions.collect(),
             workflow_params
         )
-
 
     emit:
         telemetry = workflow_params
@@ -497,7 +533,8 @@ workflow pipeline {
         bam = map_to_combined_reference.out.bam
         bam_info = map_to_combined_reference.out.bam_info
         combined_reference = make_combined_reference.out.combined_reference
-        consensus = make_consensus.out.consensus_fasta
+        consensus = medaka_consensus.out.consensus
+        variants = medaka_consensus.out.variants
         per_read_genome_types = aav_structures.out.per_read_info
 }
 
@@ -507,51 +544,40 @@ workflow pipeline {
 WorkflowMain.initialise(workflow, params, log)
 workflow {
 
-    if (params.disable_ping == false) {
-        Pinguscript.ping_post(workflow, "start", "none", params.out_dir, params)
-    }
+    Pinguscript.ping_start(nextflow, workflow, params)
 
-         /// PREPARE INPUTS  ///
-        // make sure that one of `--fastq` or `--ubam` was given
-        def input_type = ['fastq', 'ubam'].findAll { params[it] }
-        if (input_type.size() != 1) {
-            error "Only provide one of '--fastq' or '--ubam'."
-        }
-        input_type = input_type[0]
-
-    samples = ingress([
-        "input":params[input_type],
+    if (params.fastq) {
+    samples = fastq_ingress([
+        "input":params.fastq,
         "sample":params.sample,
         "sample_sheet":params.sample_sheet,
         "analyse_unclassified":params.analyse_unclassified,
-        "fastcat_stats": true,
-        "fastcat_extra_args": "",
-        "input_type": input_type])
+        "stats": true,
+        "fastcat_extra_args": ""])
+    } else {
+        // if we didn't get a `--fastq`, there must have been a `--bam` (as is codified
+        // by the schema)
+         samples = xam_ingress([
+        "input":params.bam,
+        "sample":params.sample,
+        "sample_sheet":params.sample_sheet,
+        "analyse_unclassified":params.analyse_unclassified,
+        "keep_unaligned": true,
+        "stats": true
+        ])
+    }
 
     ref_host = file(params.ref_host, checkIfExists: true)
     ref_helper = file(params.ref_helper, checkIfExists: true)
     ref_rep_cap = file(params.ref_rep_cap, checkIfExists: true)
-    ref_transgene_plamid = file(params.ref_transgene_plasmid, checkIfExists: true)
-    transgene_plasmid_annotation = file(params.transgene_annotation, checkIfExists: true)
-
-    if(params.clair3_model_path) {
-            log.warn "Overriding Clair3 model with ${params.clair3_model_path}."
-            clair3_model = Channel.fromPath(params.clair3_model_path, type: "dir", checkIfExists: true)
-    } else {
-            // map basecalling model to clair3 model
-            lookup_table = Channel.fromPath("${projectDir}/data/clair3_models.tsv", checkIfExists: true)
-            // TODO basecaller_model_path
-            clair3_model = lookup_clair3_model(lookup_table, params.basecaller_cfg)
-    }
+    ref_transgene_plasmid = file(params.ref_transgene_plasmid, checkIfExists: true)
 
     pipeline(
         samples,
         ref_host,
         ref_helper,
         ref_rep_cap,
-        ref_transgene_plamid,
-        transgene_plasmid_annotation,
-        clair3_model)
+        ref_transgene_plasmid)
 
     pipeline.out.per_read_stats
     | map { [it, "fastq_ingress_results"] }
@@ -567,21 +593,21 @@ workflow {
         },
         pipeline.out.bam_info.map {meta, item -> [item, meta.alias]},
         pipeline.out.consensus
-            | concat(pipeline.out.per_read_genome_types)
+            | concat(
+                pipeline.out.variants,
+                pipeline.out.per_read_genome_types
+            )
             | map {[it[1], it[0].alias]},
         pipeline.out.combined_reference
             | map {[it, null]}
-
     )
     | output
 }
 
-if (params.disable_ping == false) {
-    workflow.onComplete {
-        Pinguscript.ping_post(workflow, "end", "none", params.out_dir, params)
-    }
+workflow.onComplete {
+    Pinguscript.ping_complete(nextflow, workflow, params)
+}
+workflow.onError {
+    Pinguscript.ping_error(nextflow, workflow, params)
 
-    workflow.onError {
-        Pinguscript.ping_post(workflow, "error", "$workflow.errorMessage", params.out_dir, params)
-    }
 }

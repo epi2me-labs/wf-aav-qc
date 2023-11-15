@@ -1,33 +1,36 @@
 """Test the AAV structures data generation code.
 
-The workflow can be broken down into two main parts
-1: Assigning a Genome_type to each alignment based on its start and end positions in
+The AAV structures process is formed of two main parts
+1: Assigning an AlnType to each alignment based on its start and end positions in
 relation to the ITR sequences
-2: Assignng Assigned_genome_subtype which is derived from the Genome_subtypes of the
-read's alignments ....
+2: Assigning A ReadType by looking at the individual AlnTypes of the read
 """
-
 from pathlib import Path
 
 import pandas as pd
 import polars as pl
+from polars.testing import assert_frame_equal
 from workflow_glue.aav_structures import (
     annotate_reads,
-    assign_genome_types_to_alignments
+    assign_genome_types_to_alignments,
+    get_subtype_definitions,
 )
 import yaml
 
 
 def build_bam_info():
     """
-    Build alignment summary DatFrame.
+    Build a DataFrame of alignment summaries.
 
-    The bam info alignment results (seqkit stats) are used in the workflow to
-    determine the genome structures present.
+    The bam alignment summaries from seqkit are used in the workflow to
+    determine the genome structures present. The function builds a test DataFrame
+    with only the required columns present.
 
-    In test/data/structures.yaml, each genome type is defined and examples are given.
-    This function takes each example and generates a pandas dataframe similar to
-    what would be expected by the workflow.
+    The alignment DataFrame is populated from entries in tests/data/structures.yaml,
+    where examples of each aln_type are given.
+
+    This function takes each example and uses it to populate a pandas dataframe
+    similar to what would be expected by the workflow.
     """
     test_data_dr = Path(__file__).resolve().parent / 'data'
     structures_config_file = test_data_dr / 'structures.yaml'
@@ -36,14 +39,14 @@ def build_bam_info():
 
     records = []
     read_id = 0
-    for gt_data in cfg['genome_types']:
+    for gt_data in cfg['aln_types']:
         for aln in gt_data['examples']:
             records.append(
-                [read_id] + aln.split() + [gt_data['genome_type']], )
+                [read_id] + aln.split() + [gt_data['aln_type']], )
             read_id += 1
 
     df = pd.DataFrame.from_records(records)
-    header = ['Read', 'Ref', 'Pos', 'EndPos', 'Strand', 'IsSec', 'expected_genome_type']
+    header = ['Read', 'Ref', 'Pos', 'EndPos', 'Strand', 'IsSec', 'expected_aln_type']
     df.columns = header
     df = df.astype({
         'Read': str,
@@ -58,15 +61,16 @@ def build_bam_info():
 
 
 def build_genome_type_df():
-    """Build a dataframe containing alignments that have been asigned a Genome_type.
+    """Build a test DataFrame containing alignment assignments.
 
     With columns
     - Read
     - Ref
     - Pos
     - EndPos
-    - Strand
-    - GenomeType
+    - strand
+    - IsSec
+    - AlnType # This is the expected G
     """
     test_data_dir = Path(__file__).resolve().parent / 'data'
     structures_config_file = test_data_dir / 'structures.yaml'
@@ -74,20 +78,24 @@ def build_genome_type_df():
         cfg = yaml.load(fh, Loader=yaml.FullLoader)
 
     records = []
-    read_subtype_map = {}  # Reads to expected subtype mapping
-    read_id = 0
+    read_type_map = {}  # Reads to expected subtype mapping
 
-    for subtype in cfg['assigned_genome_subtypes']:
-        read_subtype_map[f'read_{read_id}'] = subtype['subtype']
-        for aln, genome_type in subtype['alignments']:
-            records.append(
-                [f'read_{read_id}'] + aln.split() + [genome_type])
-            read_id += 1
+    for read_type in cfg['assigned_genome_subtypes']:
+        for example in read_type['examples']:
+            # genome_type is what would have already been assigned to the alignment in
+            # assign_genome_types_to_alignments(), which will have been tested before
+            # running this test
+            for aln, aln_type in example:
+                aln_info = aln.split()
+                read_id = aln_info[0]
+                records.append(
+                    [f'{read_id}'] + aln_info[1:] + [aln_type])
+                read_type_map[read_id] = read_type['read_type']
 
     df = pd.DataFrame.from_records(records)
     header = [
         'Read', 'Ref', 'Pos', 'EndPos', 'Strand',
-        'IsSec', 'Genome_type']
+        'IsSec', 'aln_type']
     df.columns = header
     df = df.astype({
         'Read': str,
@@ -95,11 +103,11 @@ def build_genome_type_df():
         'Pos': int,
         'EndPos': int,
         'IsSec': int,
-        'Genome_type': str
+        'aln_type': str
     })
 
     df_read_subtype_map = (
-        pd.DataFrame.from_dict(read_subtype_map, orient='index')
+        pd.DataFrame.from_dict(read_type_map, orient='index')
         .reset_index(drop=False)
     )
     df_read_subtype_map.columns = ['Read', 'Assigned_genome_subtype']
@@ -113,7 +121,8 @@ def test_assign_genome_types_to_alignments():
     itr1_end = 156
     itr2_start = 2324
     itr2_end = 2454
-    padding = 10
+    itr_fl_threshold = 100
+    itr_backbone_threshold = 20
 
     cfg, bam_info_df = build_bam_info()
 
@@ -123,33 +132,35 @@ def test_assign_genome_types_to_alignments():
         itr1_end,
         itr2_start,
         itr2_end,
-        padding
+        itr_fl_threshold,
+        itr_backbone_threshold
     )
 
-    result_df = result_df.to_pandas()[['Read', 'Genome_type']]
-    test_df = bam_info_df.to_pandas()[['Read', 'expected_genome_type']]
-    test_df.rename(columns={'expected_genome_type': 'Genome_type'}, inplace=True)
+    actual = result_df.select(['Read', 'aln_type'])
+    expected = (
+        bam_info_df.select(['Read', 'expected_aln_type'])
+        .rename({'expected_aln_type': 'aln_type'})
+    )
 
-    pd.testing.assert_frame_equal(test_df, result_df)
+    assert_frame_equal(
+        expected, actual,
+        check_dtype=False, check_row_order=False, check_column_order=False
+    )
 
 
 def test_annotate_reads():
-    """Test annotationg reads.
-
-    # Cols that we need in trans_df
-    - Read Ref Pos EndPos Strand GenomeType
-
-    TODO:
-        - Add more all the assigned_genome_type entries into the structures.yaml
-        - Test assigned_genome_types_summary
-    """
+    """Test assigning Assigned_genome_subtype to reads."""
     df_subtype, read_to_subtype_map_df = build_genome_type_df()
-    # For this test we convert the expected_result column to 'GenomeType' we know
-    # GenomeType is correct as the `test_assign_genome_types_to_alignments` will
-    # Have passed to get to this point
 
-    assigned_genome_types_summary, per_read_output = annotate_reads(df_subtype)
-    pd.testing.assert_frame_equal(
-        read_to_subtype_map_df,
-        per_read_output.to_pandas()[['Read', 'Assigned_genome_subtype']]
+    per_read_subtypes = annotate_reads(df_subtype, get_subtype_definitions(), 10)
+
+    # p = per_read_subtypes.to_pandas().sort_values('Read').reset_index(drop=True)
+    # t = read_to_subtype_map_df.sort_values('Read').reset_index(drop=True)
+
+    expected = pl.from_pandas(read_to_subtype_map_df).sort('Read')
+    actual = per_read_subtypes.select(['Read', 'Assigned_genome_subtype']).sort('Read')
+
+    assert_frame_equal(
+        expected, actual,
+        check_dtype=False, check_row_order=False, check_column_order=False
     )

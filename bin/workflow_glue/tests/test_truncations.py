@@ -9,30 +9,21 @@ from workflow_glue.truncations import main
 
 def test_main():
     """Test main."""
-    annotation_str =  \
-        """aav8\t11\t 156\tITR1\n
-aav8\t175\t891\tcmv_enhancer\n
-aav8\t897\t1099\tcmv_promoter\n
-aav8\t1223\t1941\tGFP\n
-aav8\t2324\t2454\tITR2\n
-aav8\t3252\t3347\tAmpR_promoter\n
-aav8\t3350\t4206\tAmpR\n
-aav8\t4383\t4920\tori
-        """
+    itr1_start = 11
+    itr2_end = 2454
 
-    annotation = tempfile.NamedTemporaryFile()
-    with open(annotation.name, 'w') as fh_a:
-        fh_a.write(annotation_str)
-
-    # Note: bam_info will contain more columns, but only three are used.
+    # Note: bam_info will contain more columns, but only three are used in the tested
+    # script.
     bam_info_entries = [
-        ['Read',  'Ref',       'Pos',  'EndPos'],
+        ['Read',  'Ref',  'Pos',  'EndPos'],
         # Contained fully in ITR-ITR
-        ['read1', 'flip_flop', '20',   '2000'],
+        ['read1', 'aav8', '20',   '2000'],
         # Not fully in ITR-ITR, but within padded region
-        ['read2', 'flop_flop', '10',   '2000'],
+        ['read2', 'aav8', '10',   '2000'],
         # Not fully in ITR-ITR
-        ['read3', 'flop_flop', '2500', '4000'],
+        ['read3', 'aav8', '2500', '4000'],
+        # A non-transgene plasmid alignment
+        ['read4', 'cell_line', '300', '3000']
     ]
 
     bam_info = tempfile.NamedTemporaryFile()
@@ -42,10 +33,11 @@ aav8\t4383\t4920\tori
 
     outfile = tempfile.NamedTemporaryFile(mode='w')
     args = Mock()
-    args.annotation = annotation.name
+    args.itr_range = [itr1_start, itr2_end]
     args.bam_info = bam_info.name
     args.sample_id = "test_id"
     args.outfile = outfile.name
+    args.transgene_plasmid_name = 'aav8'
     main(args)
 
     result_df = pd.read_csv(args.outfile, sep='\t')

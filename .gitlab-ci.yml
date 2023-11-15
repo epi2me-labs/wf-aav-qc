@@ -5,7 +5,7 @@ include:
 
 variables:
     # We'll use the single-file case for these runs
-    NF_WORKFLOW_OPTS: "--ubam test_data/ubam --ref_host test_data/grch38_chr19_22.fa.gz --ref_helper test_data/helper_plasmid_pAdDeltaF6.fasta --ref_rep_cap test_data/AAV1_rep_cap_plasmid_jan23.fasta --ref_transgene_plasmid --transgene_annotation test_data/AAV8.bed --ref_transgene_plasmid test_data/AAV8_transgene_fixed_ITR1_no_3bp_del.fasta --mapping_threads 4"
+    NF_WORKFLOW_OPTS: "--fastq test_data/fastq --ref_host test_data/cell_line.fasta.gz --ref_helper test_data/helper.fasta --ref_rep_cap test_data/repcap.fasta  --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286 --ref_transgene_plasmid test_data/transgene.fasta --threads 4"
     CI_FLAVOUR: "new" # set to "classic" for old-style CI
 
 # Remove this block in downstream templates
@@ -17,7 +17,8 @@ singularity-run:
 docker-run:
 
     # Remove this directive in downstream templates
-    tags: [] # no need for big ram
+    tags:
+      - large_ram
 
     # Define a 1D job matrix to inject a variable named MATRIX_NAME into
     #   the CI environment, we can use the value of MATRIX_NAME to determine
@@ -37,7 +38,7 @@ docker-run:
           when: never
         - if: $MATRIX_NAME == "fastq_input"
           variables:
-              NF_WORKFLOW_OPTS: "--fastq test_data/fastq --ref_host test_data/grch38_chr19_22.fa.gz --ref_helper test_data/helper_plasmid_pAdDeltaF6.fasta --ref_rep_cap test_data/AAV1_rep_cap_plasmid_jan23.fasta --ref_transgene_plasmid --transgene_annotation test_data/AAV8.bed --ref_transgene_plasmid test_data/AAV8_transgene_fixed_ITR1_no_3bp_del.fasta --mapping_threads 4"
+              NF_WORKFLOW_OPTS: "--fastq test_data/fastq --ref_host test_data/cell_line.fasta.gz --ref_helper test_data/helper.fasta --ref_rep_cap test_data/repcap.fasta --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286  --ref_transgene_plasmid test_data/transgene.fasta --threads 4"
         - if: $MATRIX_NAME == "ubam_input"
           variables:
-            NF_WORKFLOW_OPTS: "--ubam test_data/ubam --ref_host test_data/grch38_chr19_22.fa.gz --ref_helper test_data/helper_plasmid_pAdDeltaF6.fasta --ref_rep_cap test_data/AAV1_rep_cap_plasmid_jan23.fasta --ref_transgene_plasmid --transgene_annotation test_data/AAV8.bed --ref_transgene_plasmid test_data/AAV8_transgene_fixed_ITR1_no_3bp_del.fasta --mapping_threads 4"
+            NF_WORKFLOW_OPTS: "--bam test_data/ubam --ref_host test_data/cell_line.fasta.gz --ref_helper test_data/helper.fasta --ref_rep_cap test_data/repcap.fasta --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286  --ref_transgene_plasmid test_data/transgene.fasta --threads 4"

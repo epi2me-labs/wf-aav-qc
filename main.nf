@@ -126,11 +126,11 @@ process make_combined_reference {
 process map_to_combined_reference {
     label "wf_aav"
     // two extra threads for samtools
-    cpus {params.threads}
-    memory '16 GB'
+    cpus params.threads
+    memory params.mm2_memory
     input:
         tuple val(meta),
-              path(input)
+              path("reads.fastq.gz")
         path("combined_reference.fa.gz")
     output:
         tuple val(meta),
@@ -146,17 +146,17 @@ process map_to_combined_reference {
     if (params.bam){
         usebam = true
     }
-    // Keep two threads from samtols
+    // Keep two threads for samtools
     def mm2_threads = Math.max(task.cpus - 2, 1)
     """
     if [[ "$usebam" == "true" ]]; then
-        samtools fastq "$input" \
+        samtools fastq reads.fastq.gz \
         | minimap2 -ax map-ont --secondary=no -t ${mm2_threads} \
             combined_reference.fa.gz - \
         | samtools sort -o ${meta['alias']}_align.bam -
     else
         minimap2 -ax map-ont --secondary=no -t ${mm2_threads} \
-            combined_reference.fa.gz "$input" \
+            combined_reference.fa.gz reads.fastq.gz \
         | samtools sort -o ${meta['alias']}_align.bam -
     fi
     samtools index ${meta['alias']}_align.bam

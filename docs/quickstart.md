@@ -79,7 +79,7 @@ nextflow run epi2me-labs/wf-aav-qc \
 ```
 
 # Related protocols
-https://nanoporetech.atlassian.net/wiki/spaces/PMO/pages/264476502/New+AAV+sequencing+SQK-NBD114.24+end+to+end+workflow+release
+https://community.nanoporetech.com/docs/prepare/library_prep_protocols/ligation-sequencing-gdna-v14-adeno-associated-virus-sequencing/v/aav_9194_v114_reva_20sep2023
 
 # Inputs
 

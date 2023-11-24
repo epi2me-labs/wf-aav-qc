@@ -1,0 +1,81 @@
+<!---High level numbered list of main steps of the workflow and hyperlink to any tools used. If multiple workflows/different modes perhaps have subheadings and numbered steps. Use nested numbering or bullets where required.--->
+
+The following (Fig.1) is a basic schematic of the workflow:
+<figure>
+<img src="docs/images/wf-aav-qc_overview_outline.png", alt="AAV QC overview">
+<figcaption>Fig.1 wf-aav-qc workflow</figcaption>
+</figure>
+
+### 1: Make a combined reference sequence 
+Reads can originate from the transgene cassette, but can also come from the other plasmids
+used in the rAAV prep as well as host cell DNA. Therefore a combined reference is created
+that contains the following reference sequences:
+* host reference genome
+* Rep-Cap plasmid
+* helper plasmid 
+* transgene plasmid (variable ITR regions masked).
+
+The transgene plasmid ITR cassette will naturally exist in four orientations. 
+(termed flip-flip, flip-flop, flop-flop and flop-flip; see Fig.2)
+This can lead to incorrect mapping of reads. To address this, the variable regions in the transgene cassette are masked.
+This is done by taking the input transgene plasmid and locating the two ITR regions as defined in the `--transgene_annotation`
+file. The `C'`, `C`, `B'` and `B` ITR regions are identified for each ITR. From these regions it can be determined which positions are constant between orientations and which are variable, and will be masked.
+
+<figure>
+<img src="docs/images/combined_reference.png", alt="Combined reference">
+<figcaption>Fig.2 Making a combined reference</figcaption>
+</figure>
+
+### 2: Map to reference and get alignment summaries
+The reads are mapped to the combined reference using minimap2 (secondary alignments are excluded).
+`seqkit bam` is used to generate alignment summaries that are used in the rest of the workflow. 
+
+### 3: Contamination
+Reads that do not map to the transgene expression cassette are classified as contaminants. They can arise from
+* The Rep-Cap or helper plasmids
+* The host expression system
+* None of the above reference sequences. The reads will be classified as `Unknown`. If there are a large proportion of reads 
+in this category, it may warrant further investigation to identify the source.
+<figure>
+<img src="docs/images/contamination.png", alt="Contamination">
+<figcaption>Fig.3 Contamination summary plot </figcaption>
+</figure>
+
+
+### 4: Per-base coverage of the transgene cassette
+Depth of coverage is generated for the transgene cassette region using `samtools depth`. 
+A plot of this data is shown which indicates whether sufficient coverage has been
+achieved across the transgene cassette.
+<figure>
+<img src="docs/images/coverage.png", alt="Coverage", height="300">
+<figcaption>Fig.4 ITR-ITR coverage</figcaption>
+</figure>
+
+
+### 5: Identification of transgene plasmid variants
+Variants are called using [medaka](https://github.com/nanoporetech/medaka), and a consensus sequence is generated for the transgene plasmid sequence  
+generating the following files: `output/{sample_id}.medaka_variants.vcf.gz`, `output/{sample_id}.medaka_consensus.fasta.gz`
+
+A relevant user option for this part of the workflow is `--basecaller_cfg`. This is the name of the basecaller model that 
+was used to process the sequencing signal data. This is used to select the correct medaka model.
+
+
+### 6: Identification of truncated regions
+The 'start' and 'end' positions of alignments that map within the transgene cassette are plotted to highlight potential
+regions where sequences are becoming truncated.
+
+<figure>
+<img src="docs/images/truncations.png", alt="Truncations plot" height="300">
+<figcaption>Fig.5 Plot of start and end positions of reads mapping to transgene cassette. </figcaption>
+</figure>
+
+### 7: rAAV structure determination
+The rAAV transgene expression cassette will ideally exist as full length ITR-flanked regions. 
+However, subgenomic particles will be present in any prep, and it can be useful to know the abundance of the various genome
+types, which is the aim of this stage of the workflow. Genome types are assigned to each read by applying a series of heuristics that use the characteristics of each alignment from the read. 
+
+There are two user-adjustable parameters relevant to this part of the workflow:
+* `--itr_fl_threshold` (default 100). This parameter specifies the maximum number of bases missing from an ITR in order for it to be classed as a full length ITR. 
+* `--itr_backbone_threshold` (default 20). Reads mapping to the transgene plasmid sometimes extend beyond the ITRs. This parameter sets a maximum number of bases after which the read is classified as `backbone`.
+
+See the [AAV structures](#aav-structure-diagrams) section for some representative diagrams of AAV gene structures and how they are classified.

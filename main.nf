@@ -9,7 +9,8 @@ OPTIONAL_FILE = file("$projectDir/data/OPTIONAL_FILE")
 
 process medakaVersion {
     label "medaka"
-    cpus 1
+    cpus 2
+    memory "2 GB"
     output:
         path "medaka_version.txt"
     """
@@ -21,6 +22,7 @@ process medakaVersion {
 process getVersions {
     label "wf_aav"
     cpus 1
+    memory "2 GB"
     input:
         path "input_versions.txt"
     output:
@@ -42,6 +44,7 @@ process getVersions {
 process get_ref_names {
     label "wf_aav"
     cpus 1
+    memory "2 GB"
     input:
         path("transgene_plasmid.fa")
     output:
@@ -57,6 +60,7 @@ process get_ref_names {
 process getParams {
     label "wf_aav"
     cpus 1
+    memory "2 GB"
     output:
         path "params.json"
     script:
@@ -73,8 +77,8 @@ process mask_transgene_reference {
     Mask the variable regions within the transgene cassette ITRs
     */
     label "wf_aav"
-    cpus 1
-    memory '1 GB'
+    cpus 2
+    memory "2 GB"
     input:
         input:
             path("aav_transgene_plasmid.fa")
@@ -82,7 +86,6 @@ process mask_transgene_reference {
             path("itr_masked_transgene_plasmid.fasta"),
             emit: masked_transgene_plasmid
     """
-    touch hh
     workflow-glue mask_itrs \
         --transgene_plasmid_fasta "aav_transgene_plasmid.fa" \
         --itr_locations $params.itr1_start $params.itr1_end $params.itr2_start $params.itr2_end \
@@ -97,6 +100,7 @@ process make_combined_reference {
     */
     label "wf_aav"
     cpus 2
+    memory "2 GB"
     input:
           path(ref_host)
           path("ref_helper.fa")
@@ -125,7 +129,6 @@ process make_combined_reference {
 
 process map_to_combined_reference {
     label "wf_aav"
-    // two extra threads for samtools
     cpus params.threads
     memory params.mm2_memory
     input:
@@ -170,8 +173,8 @@ process truncations {
     Filter alignments for those that start and end within the ITR-ITR cassette.
     */
     label "wf_aav"
-    cpus 1
-    memory '1 GB'
+    cpus 2
+    memory "2 GB"
 
     input:
         tuple val(meta),
@@ -199,8 +202,8 @@ process contamination {
     Make plot data detailing the frequency of reads mapping to various references.
     */
     label "wf_aav"
-    cpus 1
-    memory '3 GB'
+    cpus 2
+    memory '4 GB'
     input:
         tuple val(meta),
               path("bam_info.tsv"),
@@ -214,7 +217,6 @@ process contamination {
         path('contam_class_counts.tsv'), emit: contam_class_counts
 
     """
-    touch p
     # Get read IDs from either bamstats or fastcat stats file.
     zcat < read_stats/*/*stats.tsv.gz | cut -f1 | tail -n +2 > read_ids.tsv
 
@@ -234,9 +236,7 @@ process contamination {
 process aav_structures {
     label "wf_aav"
     cpus params.threads
-    // In testing of 150k reads, this process was ~ 500 MB peak RSS. Most of that was
-    // polars overhead, but we'll add some more to be sure
-    memory '2 GB'
+    memory '4 GB'
     input:
         tuple val(meta),
               path("bam_info.tsv")
@@ -270,7 +270,7 @@ process itr_coverage {
     Make data to plot coverage at each of the four ITR-ITR cassette orientation references.
     */
     label "wf_aav"
-    memory '500 MB'
+    memory "2 GB"
     cpus 3
     input:
         tuple val(meta),
@@ -300,7 +300,7 @@ process itr_coverage {
 process lookup_medaka_variant_model {
     label "wf_aav"
     cpus 1
-    memory '500 MB'
+    memory "2 GB"
     input:
         path("lookup_table")
         val basecall_model
@@ -368,7 +368,8 @@ process medaka_consensus {
 
 process combine_stats {
     label "wf_aav"
-    cpus 1
+    cpus 2
+    memory "2 GB"
     input:
         tuple val(meta),
               path('per-read-stats.tsv.gz')
@@ -384,8 +385,8 @@ process combine_stats {
 
 process makeReport {
     label "wf_aav"
-    cpus 1
-    memory '2 GB'
+    cpus 2
+    memory '4 GB'
     input:
         val metadata
         path 'per_read_stats.tsv'
@@ -422,6 +423,8 @@ process makeReport {
 process output {
     // publish inputs to output directory
     label "wf_aav"
+    cpus 2
+    memory "2 GB"
     publishDir (
         params.out_dir,
         mode: "copy",

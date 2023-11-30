@@ -59,7 +59,7 @@ def main(args):
     )]
 
     # Read the per-alignment read summaries
-    df_bam = pd.read_csv(args.bam_info, sep='\t')
+    df_bam = pd.read_csv(args.bam_info, sep='\t', usecols=['Read', 'Ref', 'ReadLen'])
     # Assign reference category to alignments
     df_bam['contam_class'] = None
     df_bam.loc[df_bam.Ref == transgene_plasmid_name, 'contam_class'] = 'Transgene'

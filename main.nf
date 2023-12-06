@@ -123,18 +123,30 @@ process make_combined_reference {
         ref_rep_cap.fa \
         | gzip >> combined_reference.fa.gz
     """
+}
 
+process make_index {
+    label "wf_aav"
+    cpus Math.min(params.threads, 16)
+    memory "16 GB"
+    input:
+        path "ref_genome.fasta"
+    output:
+        path "genome_index.mmi", emit: index
+    """
+     minimap2 -t ${task.cpus} -I 16G -d genome_index.mmi ref_genome.fasta
+    """
 }
 
 
 process map_to_combined_reference {
     label "wf_aav"
-    cpus params.threads
-    memory params.mm2_memory
+    cpus Math.min(params.threads, 16)
+    memory "16 GB"
     input:
         tuple val(meta),
               path("reads.fastq.gz")
-        path("combined_reference.fa.gz")
+        path("genome_index.mmi")
     output:
         tuple val(meta),
               path("${meta['alias']}_align.bam"),
@@ -155,11 +167,11 @@ process map_to_combined_reference {
     if [[ "$usebam" == "true" ]]; then
         samtools fastq reads.fastq.gz \
         | minimap2 -ax map-ont --secondary=no -t ${mm2_threads} \
-            combined_reference.fa.gz - \
+            genome_index.mmi - \
         | samtools sort -o ${meta['alias']}_align.bam -
     else
         minimap2 -ax map-ont --secondary=no -t ${mm2_threads} \
-            combined_reference.fa.gz reads.fastq.gz \
+            genome_index.mmi reads.fastq.gz \
         | samtools sort -o ${meta['alias']}_align.bam -
     fi
     samtools index ${meta['alias']}_align.bam
@@ -469,9 +481,13 @@ workflow pipeline {
             mask_transgene_reference.out.masked_transgene_plasmid
         )
 
+        make_index(
+            make_combined_reference.out.combined_reference
+        )
+
         map_to_combined_reference(
             samples.map {meta, reads, stats -> [meta, reads]},
-            make_combined_reference.out.combined_reference
+            make_index.out.index
         )
 
         truncations(

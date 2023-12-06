@@ -130,7 +130,6 @@ https://community.nanoporetech.com/docs/prepare/library_prep_protocols/ligation-
 | Nextflow parameter name  | Type | Description | Help | Default |
 |--------------------------|------|-------------|------|---------|
 | threads | integer | Maximum number of CPU threads for a process to consume. Applies to the minimap2 mapping and the AAV structure determination stages. | A minimap2 and AAV structure determination process per sample will be will be run. This setting applies a maximum number of threads to be used for each of these. | 4 |
-| mm2_memory | string | The amount of memory to give to the minimap2 read mapping stage |  | 16 GB |
 | disable_ping | boolean | Enable to prevent sending a workflow ping. |  | False |
 
 
@@ -140,7 +139,7 @@ https://community.nanoporetech.com/docs/prepare/library_prep_protocols/ligation-
 
 ## Outputs
 
-Outputs files may be aggregated including information for all             samples or provided per sample. Per sample files             will be prefixed with respective aliases and represented             below as {{ alias }}.
+Outputs files may be aggregated including information for all samples or provided per sample. Per-sample files will be prefixed with respective aliases and represented below as {{ alias }}.
 
 | Title | File path | Description | Per sample or aggregated |
 |-------|-----------|-------------|--------------------------|

@@ -5,7 +5,7 @@ include:
 
 variables:
     # We'll use the single-file case for these runs
-    NF_WORKFLOW_OPTS: "--fastq test_data/fastq --ref_host test_data/cell_line.fasta.gz --ref_helper test_data/helper.fasta --ref_rep_cap test_data/repcap.fasta  --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286 --ref_transgene_plasmid test_data/transgene.fasta --threads 4 --mm2_memory '1 GB'"
+    NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB --fastq test_data/fastq --ref_host test_data/cell_line.fasta.gz --ref_helper test_data/helper.fasta --ref_rep_cap test_data/repcap.fasta  --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286 --ref_transgene_plasmid test_data/transgene.fasta --threads 4 "
     CI_FLAVOUR: "new" # set to "classic" for old-style CI
 
 # Remove this block in downstream templates
@@ -38,7 +38,7 @@ docker-run:
           when: never
         - if: $MATRIX_NAME == "fastq_input"
           variables:
-              NF_WORKFLOW_OPTS: "--fastq test_data/fastq --ref_host test_data/cell_line.fasta.gz --ref_helper test_data/helper.fasta --ref_rep_cap test_data/repcap.fasta --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286  --ref_transgene_plasmid test_data/transgene.fasta --threads 4 --mm2_memory '1 GB'"
+              NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB --fastq test_data/fastq --ref_host test_data/cell_line.fasta.gz --ref_helper test_data/helper.fasta --ref_rep_cap test_data/repcap.fasta --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286  --ref_transgene_plasmid test_data/transgene.fasta --threads 4"
         - if: $MATRIX_NAME == "ubam_input"
           variables:
-            NF_WORKFLOW_OPTS: "--bam test_data/ubam --ref_host test_data/cell_line.fasta.gz --ref_helper test_data/helper.fasta --ref_rep_cap test_data/repcap.fasta --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286  --ref_transgene_plasmid test_data/transgene.fasta --threads 4 --mm2_memory '1 GB'"
+            NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB --bam test_data/ubam --ref_host test_data/cell_line.fasta.gz --ref_helper test_data/helper.fasta --ref_rep_cap test_data/repcap.fasta --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286  --ref_transgene_plasmid test_data/transgene.fasta --threads 4"

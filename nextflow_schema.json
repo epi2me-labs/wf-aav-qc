@@ -235,13 +235,6 @@
                     "description": "Maximum number of CPU threads for a process to consume. Applies to the minimap2 mapping and the AAV structure determination stages.",
                     "help_text": "A minimap2 and AAV structure determination process per sample will be will be run. This setting applies a maximum number of threads to be used for each of these."
                 },
-                "mm2_memory": {
-                    "type": "string",
-                    "title": "minimap2_memory",
-                    "default": "16 GB",
-                    "description": "The amount of memory to give to the minimap2 read mapping stage",
-                    "help": "This can normally be be left at the default 16 GB."
-                },
                 "disable_ping": {
                     "type": "boolean",
                     "default": false,

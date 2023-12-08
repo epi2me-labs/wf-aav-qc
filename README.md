@@ -162,13 +162,13 @@ Outputs files may be aggregated including information for all samples or provide
 
 The following (Fig.1) is a basic schematic of the workflow:
 <figure>
-<img src="docs/images/wf-aav-qc_overview_outline.png", alt="AAV QC overview">
+<img src="docs/images/wf-aav-qc_overview_outline.png" alt="AAV QC overview"/>
 <figcaption>Fig.1 wf-aav-qc workflow</figcaption>
 </figure>
 
 ### 1: Make a combined reference sequence 
 Reads can originate from the transgene cassette, but can also come from the other plasmids
-used in the rAAV prep as well as host cell DNA. Therefore a combined reference is created
+used in the rAAV prep as well as host cell DNA. Therefore, a combined reference is created
 that contains the following reference sequences:
 * host reference genome
 * Rep-Cap plasmid
@@ -182,7 +182,7 @@ This is done by taking the input transgene plasmid and locating the two ITR regi
 file. The `C'`, `C`, `B'` and `B` ITR regions are identified for each ITR. From these regions it can be determined which positions are constant between orientations and which are variable, and will be masked.
 
 <figure>
-<img src="docs/images/combined_reference.png", alt="Combined reference">
+<img src="docs/images/combined_reference.png" alt="Combined reference"/>
 <figcaption>Fig.2 Making a combined reference</figcaption>
 </figure>
 
@@ -197,7 +197,7 @@ Reads that do not map to the transgene expression cassette are classified as con
 * None of the above reference sequences. The reads will be classified as `Unknown`. If there are a large proportion of reads 
 in this category, it may warrant further investigation to identify the source.
 <figure>
-<img src="docs/images/contamination.png", alt="Contamination">
+<img src="docs/images/contamination.png" alt="Contamination"/>
 <figcaption>Fig.3 Contamination summary plot </figcaption>
 </figure>
 
@@ -207,7 +207,7 @@ Depth of coverage is generated for the transgene cassette region using `samtools
 A plot of this data is shown which indicates whether sufficient coverage has been
 achieved across the transgene cassette.
 <figure>
-<img src="docs/images/coverage.png", alt="Coverage", height="300">
+<img src="docs/images/coverage.png" alt="Coverage" height="300"/>
 <figcaption>Fig.4 ITR-ITR coverage</figcaption>
 </figure>
 
@@ -225,7 +225,7 @@ The 'start' and 'end' positions of alignments that map within the transgene cass
 regions where sequences are becoming truncated.
 
 <figure>
-<img src="docs/images/truncations.png", alt="Truncations plot" height="300">
+<img src="docs/images/truncations.png" alt="Truncations plot" height="300"/>
 <figcaption>Fig.5 Plot of start and end positions of reads mapping to transgene cassette. </figcaption>
 </figure>
 
@@ -280,14 +280,14 @@ The first of these is an annotated example describing the
 components of the image.
 
 <figure>
-<img src="docs/images/diagram_notes.png", alt="Example", height="120">
+<img src="docs/images/diagram_notes.png" alt="Example" height="120"/>
 <figcaption>Fig.6 Full and partial examples of a rAAV transgene expression cassette. The colour codes are preserved in the following figures </figcaption>
 </figure>
 
 #### Full ssAAV (single stranded AAV)
 Contains a single alignment including both ITRs (up to `itr_fl_threshold` bases missing)
 <figure>
-<img src="docs/images/full_ss.png", alt="Example", height="50">
+<img src="docs/images/full_ss.png" alt="Example" height="50"/>
 
 </figure>
 
@@ -295,20 +295,20 @@ Contains a single alignment including both ITRs (up to `itr_fl_threshold` bases 
 A subgenomic type of ssAAV where part of the transgene expression cassette, internal to the ITRs, is deleted.
 This class will have two alignments both on the same strand. 
 <figure>
-<img src="docs/images/gdm.png", alt="GDM", height="100">
+<img src="docs/images/gdm.png" alt="GDM" height="100"/>
 </figure>
 
 ### Incomplete genome (ICG)
 Another subgenomic type of ssAAV where one side contains a full ITR (up to `itr_fl_threshold` bases missing) and the ITR is partial or missing on the other side.
 <figure>
-<img src="docs/images/icg.png", alt="ICG", height="100">
+<img src="docs/images/icg.png" alt="ICG" height="100"/>
 </figure>
 
 
 ### Full scAAV (self complementary rAAV)
 Contains a full or partial ITR (up to `itr_fl_threshold` bases missing) on both ends of the alignments
 <figure>
-<img src="docs/images/full_sc.png", alt="Full scAAV", height="80">
+<img src="docs/images/full_sc.png" alt="Full scAAV" height="80"/>
 </figure>
 
 
@@ -318,7 +318,7 @@ on opposite strands.
 These can be symmetric or asymmetric based the relative starts and end positions at the non-ITR end of the 
 transgene cassette.   
 <figure>
-<img src="docs/images/snapback.png", alt="SBG", height="140">
+<img src="docs/images/snapback.png" alt="SBG" height="140"/>
 </figure>
 
 
@@ -326,13 +326,13 @@ transgene cassette.
 A type of SBG genome (scAAV) in which ITRs present on one strand only or have a single 
 ITR (no mid section) on second strand.
 <figure>
-<img src="docs/images/unresolved_sbg.png", alt="Unresolved SBG", height="130">
+<img src="docs/images/unresolved_sbg.png" alt="Unresolved SBG" height="130"/>
 </figure>
 
 ### ITR-ITR concatemers
 These scAAV subgenomic particles contain only ITR sequence and can be full or partial.
 <figure>
-<img src="docs/images/itr_concatemers.png", alt="ITR concatemers", height="100">
+<img src="docs/images/itr_concatemers.png" alt="ITR concatemers" height="100"/>
 </figure>
 
 
@@ -340,7 +340,7 @@ These scAAV subgenomic particles contain only ITR sequence and can be full or pa
 Theis category contains regions from the plasmid backbone, where the start and/or end
 positions of the alignment are found outside the ITR-ITR region.
 <figure>
-<img src="docs/images/bb_integration.png", alt="Backbone integration", height="200">
+<img src="docs/images/bb_integration.png" alt="Backbone integration" height="200"/>
 </figure>
 
 

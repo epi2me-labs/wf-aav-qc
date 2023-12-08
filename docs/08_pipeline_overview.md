@@ -2,13 +2,13 @@
 
 The following (Fig.1) is a basic schematic of the workflow:
 <figure>
-<img src="docs/images/wf-aav-qc_overview_outline.png", alt="AAV QC overview">
+<img src="docs/images/wf-aav-qc_overview_outline.png" alt="AAV QC overview"/>
 <figcaption>Fig.1 wf-aav-qc workflow</figcaption>
 </figure>
 
 ### 1: Make a combined reference sequence 
 Reads can originate from the transgene cassette, but can also come from the other plasmids
-used in the rAAV prep as well as host cell DNA. Therefore a combined reference is created
+used in the rAAV prep as well as host cell DNA. Therefore, a combined reference is created
 that contains the following reference sequences:
 * host reference genome
 * Rep-Cap plasmid
@@ -22,7 +22,7 @@ This is done by taking the input transgene plasmid and locating the two ITR regi
 file. The `C'`, `C`, `B'` and `B` ITR regions are identified for each ITR. From these regions it can be determined which positions are constant between orientations and which are variable, and will be masked.
 
 <figure>
-<img src="docs/images/combined_reference.png", alt="Combined reference">
+<img src="docs/images/combined_reference.png" alt="Combined reference"/>
 <figcaption>Fig.2 Making a combined reference</figcaption>
 </figure>
 
@@ -37,7 +37,7 @@ Reads that do not map to the transgene expression cassette are classified as con
 * None of the above reference sequences. The reads will be classified as `Unknown`. If there are a large proportion of reads 
 in this category, it may warrant further investigation to identify the source.
 <figure>
-<img src="docs/images/contamination.png", alt="Contamination">
+<img src="docs/images/contamination.png" alt="Contamination"/>
 <figcaption>Fig.3 Contamination summary plot </figcaption>
 </figure>
 
@@ -47,7 +47,7 @@ Depth of coverage is generated for the transgene cassette region using `samtools
 A plot of this data is shown which indicates whether sufficient coverage has been
 achieved across the transgene cassette.
 <figure>
-<img src="docs/images/coverage.png", alt="Coverage", height="300">
+<img src="docs/images/coverage.png" alt="Coverage" height="300"/>
 <figcaption>Fig.4 ITR-ITR coverage</figcaption>
 </figure>
 
@@ -65,7 +65,7 @@ The 'start' and 'end' positions of alignments that map within the transgene cass
 regions where sequences are becoming truncated.
 
 <figure>
-<img src="docs/images/truncations.png", alt="Truncations plot" height="300">
+<img src="docs/images/truncations.png" alt="Truncations plot" height="300"/>
 <figcaption>Fig.5 Plot of start and end positions of reads mapping to transgene cassette. </figcaption>
 </figure>
 

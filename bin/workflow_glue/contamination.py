@@ -43,18 +43,21 @@ def argparser():
 
 def main(args):
     """Run main entry point."""
+    # Extract the reference sequence names from the FATA files,
+    # omitting any description (-i). seqkit adds a newline to the output, so remove
+    # that with `rstrip`
     transgene_plasmid_name = subprocess.check_output(
-        ['sed', '-n', 's/^>//p', args.transgene_fasta], encoding='UTF-8').rstrip()
+        ['seqkit', 'seq', '-ni', args.transgene_fasta], encoding='UTF-8').rstrip()
 
     helper_name = subprocess.check_output(
-        ['sed', '-n', 's/^>//p', args.helper_fasta], encoding='UTF-8').rstrip()
+        ['seqkit', 'seq', '-ni', args.helper_fasta], encoding='UTF-8').rstrip()
 
     rep_cap_name = subprocess.check_output(
-        ['sed', '-n', 's/^>//p', args.rep_cap_fasta], encoding='UTF-8').rstrip()
+        ['seqkit', 'seq', '-ni', args.rep_cap_fasta], encoding='UTF-8').rstrip()
 
-    host_names = [x.split()[0] for x in (
+    host_names = [x.rstrip() for x in (
         subprocess.check_output(
-            ['seqkit', 'seq', '-n', args.host_fasta],
+            ['seqkit', 'seq', '-ni', args.host_fasta],
             encoding='UTF-8').splitlines()
     )]
 

@@ -52,7 +52,7 @@ process get_ref_names {
     script:
     def transgene_name = ''
     """
-    seqkit seq -n transgene_plasmid.fa -o transgene_id.txt
+    seqkit seq -ni transgene_plasmid.fa | tr -d '\n' > transgene_id.txt
     """
 }
 
@@ -82,6 +82,7 @@ process mask_transgene_reference {
     input:
         input:
             path("aav_transgene_plasmid.fa")
+            val(transgene_plasmid_name)
         output:
             path("itr_masked_transgene_plasmid.fasta"),
             emit: masked_transgene_plasmid
@@ -89,7 +90,8 @@ process mask_transgene_reference {
     workflow-glue mask_itrs \
         --transgene_plasmid_fasta "aav_transgene_plasmid.fa" \
         --itr_locations $params.itr1_start $params.itr1_end $params.itr2_start $params.itr2_end \
-        --outfile "itr_masked_transgene_plasmid.fasta"
+        --outfile "itr_masked_transgene_plasmid.fasta" \
+        --transgene_plasmid_name "${transgene_plasmid_name}"
     """
 }
 
@@ -472,7 +474,9 @@ workflow pipeline {
         workflow_params = getParams()
         metadata = samples.map { it[0] }.toList()
 
-        mask_transgene_reference(ref_transgene_plasmid)
+        mask_transgene_reference(
+            ref_transgene_plasmid, transgene_plasmid_name
+        )
 
         make_combined_reference(
             ref_host,

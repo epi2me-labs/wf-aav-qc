@@ -46,5 +46,5 @@ def test_main():
     assert len(result_df) == 2
     # First results is from read1
     assert result_df.iloc[0].values.tolist() == [20, 2000, 'test_id']
-    # Second resultsi s from read2
+    # Second results from read2
     assert result_df.iloc[1].values.tolist() == [10, 2000, 'test_id']

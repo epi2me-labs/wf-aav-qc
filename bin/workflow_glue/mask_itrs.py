@@ -12,8 +12,6 @@ In 'flop' orientation, to B'-B palindromes are located nearest to the 5' end of 
 
 In this code, B' and B elements are referred to as b_prime and b (similarly for C)
 """
-import subprocess
-
 import numpy as np
 import pysam
 
@@ -28,6 +26,8 @@ def argparser():
     parser.add_argument(
         '--itr_locations', help="[itr1_start, itr1_end, itr2_start, itr_2_end",
         nargs='*', type=int)
+    parser.add_argument(
+        '--transgene_plasmid_name', help='transgene plasmid name')
     parser.add_argument(
         '--outfile', help="Path for output fasta file")
 
@@ -169,12 +169,7 @@ def main(args):
     masked = (
         mask_itrs(args.transgene_plasmid_fasta, args.itr_locations)
     )
-    transgene_plasmid_name = (
-        subprocess.check_output(
-            ['seqkit', 'seq', '-n', args.transgene_plasmid_fasta],
-            encoding='UTF-8').strip().split('\n')[0]
-    )
     with open(args.outfile, 'w') as outfile:
-        outfile.write(f">{transgene_plasmid_name}\n")
+        outfile.write(f">{args.transgene_plasmid_name}\n")
         outfile.write(masked)
         outfile.write('\n')

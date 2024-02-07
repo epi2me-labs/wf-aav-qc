@@ -4,6 +4,7 @@
 from pathlib import Path
 import subprocess
 
+import numpy as np
 import pandas as pd
 
 from .util import wf_parser  # noqa: ABS101
@@ -62,7 +63,16 @@ def main(args):
     )]
 
     # Read the per-alignment read summaries
-    df_bam = pd.read_csv(args.bam_info, sep='\t', usecols=['Read', 'Ref', 'ReadLen'])
+    df_bam = pd.read_csv(
+        args.bam_info,
+        sep='\t',
+        usecols=['Read', 'Ref', 'ReadLen'],
+        dtype={
+            'Read': str,
+            'Ref': str,
+            'ReadLen': np.uint32
+            }
+    )
     # Assign reference category to alignments
     df_bam['contam_class'] = None
     df_bam.loc[df_bam.Ref == transgene_plasmid_name, 'contam_class'] = 'Transgene'

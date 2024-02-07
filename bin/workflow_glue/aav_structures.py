@@ -334,10 +334,28 @@ def annotate_reads(aln_df, type_definitions, symmetry_threshold):
 def main(args):
     """Entry point."""
     # Load the BAM info file
-    df_bam = pl.read_csv(
+    schema = {
+        'Ref':  pl.Utf8,
+        'Read': pl.Utf8,
+        'Pos': pl.UInt32,
+        'EndPos': pl.UInt32,
+        'ReadLen': pl.UInt32,
+        'Strand': pl.UInt8,
+        'IsSec': pl.UInt8,
+        'IsSup': pl.UInt8
+    }
+
+    df_bam = (pl.read_csv(
         source=args.bam_info,
         separator='\t',
-        columns=['Ref', 'Read', 'Pos', 'EndPos', 'ReadLen', 'Strand', 'IsSec', 'IsSup']
+        columns=list(schema.keys()),
+        dtypes=list(schema.values())
+        )
+        .with_columns([
+            pl.col('Strand').cast(pl.Boolean),
+            pl.col('IsSec').cast(pl.Boolean),
+            pl.col('IsSup').cast(pl.Boolean)
+        ])
     )
 
     # Get the ITR locations

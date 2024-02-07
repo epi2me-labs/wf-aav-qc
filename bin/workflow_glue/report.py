@@ -8,6 +8,7 @@ from ezcharts.components.ezchart import EZChart
 from ezcharts.components.reports import labs
 from ezcharts.layout.snippets import Grid, Tabs
 from ezcharts.layout.snippets.table import DataTable
+import numpy as np
 import pandas as pd
 
 from .util import get_named_logger, wf_parser  # noqa: ABS101
@@ -19,7 +20,14 @@ def plot_trucations(report, truncations_file):
     The truncations_file contains start and end positions of alignments that are fully
     contained within the ITR-ITR regions.
     """
-    df = pd.read_csv(truncations_file, sep='\t')
+    df = pd.read_csv(
+        truncations_file, sep='\t',
+        dtype={
+            'Read start': str,
+            'Read end': np.uint32,
+            'sample_id': str
+        }
+    )
 
     with report.add_section("Truncations", "Truncations"):
         p(
@@ -42,7 +50,16 @@ def plot_trucations(report, truncations_file):
 
 def plot_itr_coverage(report, coverage_file):
     """Make report section with ITR-ITR coverage of transgene cassette region."""
-    df = pd.read_csv(coverage_file, sep=r"\s+")
+    df = pd.read_csv(
+        coverage_file,
+        sep=r"\s+",
+        dtype={
+            'ref': str,
+            'pos': np.uint32,
+            'depth': np.uint32,
+            'strand': str,
+            'sample_id': str
+        })
 
     with report.add_section("ITR-ITR coverage", "Coverage"):
         p(
@@ -72,7 +89,16 @@ def plot_contamination(report, class_counts):
 
     Two plots: (1) mapped/unmapped; (2) mapped reads per reference
     """
-    df_class_counts = pd.read_csv(class_counts, sep='\t')
+    df_class_counts = pd.read_csv(
+        class_counts,
+        sep='\t',
+        dtype={
+            'Reference': str,
+            'Number of alignments': np.uint32,
+            'Percentage of alignments': np.float32,
+            'sample_id': str
+        }
+    )
 
     with report.add_section("Contamination", "Contamination"):
         p(
@@ -114,7 +140,16 @@ def plot_contamination(report, class_counts):
 
 def plot_aav_structures(report, structures_file):
     """Make report section barplots detailing the AAV structures found."""
-    df = pd.read_csv(structures_file, sep='\t')
+    df = pd.read_csv(
+        structures_file,
+        sep='\t',
+        dtype={
+            'Assigned_genome_type': str,
+            'count': np.uint32,
+            'percentage': np.float32,
+            'sample_id': str
+
+        })
 
     with report.add_section("AAV Structures", "Structures"):
         p(

@@ -7,6 +7,7 @@ within the ITR-ITR region.
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from .util import wf_parser  # noqa: ABS101
@@ -48,6 +49,12 @@ def main(args):
         args.bam_info,
         sep='\t',
         usecols=['Read', 'Ref', 'Pos', 'EndPos'],
+        dtype={
+            'Read': str,
+            'Ref': str,
+            'Pos': np.uint32,
+            'EndPos': np.uint32
+        },
         chunksize=50000
     ) as reader:
         for df_bam in reader:

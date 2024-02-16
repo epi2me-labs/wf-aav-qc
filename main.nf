@@ -334,7 +334,7 @@ process medaka_consensus {
     */
     label "medaka"
     cpus 4
-    memory '2 GB'
+    memory '8 GB'
     input:
         tuple val(meta),
               path("align.bam"),

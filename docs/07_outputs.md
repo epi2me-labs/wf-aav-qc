@@ -3,7 +3,6 @@ Output files may be aggregated including information for all samples or provided
 | Title | File path | Description | Per sample or aggregated |
 |-------|-----------|-------------|--------------------------|
 | Workflow report | ./wf-aav-qc-report.html | Report for all samples | aggregated |
-| Per file read stats | ./fastq_ingress_results/per-read-stats.tsv.gz | A TSV with per read stats for all samples. | aggregated |
 | Combined reference sequence | ./combined_reference.fa.gz | Reference file containing all AAV plasmid and host genome sequences. | aggregated |
 | Per read alignment info | ./{{ alias }}/{{ alias }}_bam_info.tsv | The result of `seqkit bam`. | per-sample |
 | Alignment file | ./{{ alias }}/{{ alias }}_align.bam | The resulting BAM file from mapping reads to the combined reference. | per-sample |

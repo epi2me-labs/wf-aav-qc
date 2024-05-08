@@ -126,14 +126,14 @@ def plot_contamination(report, class_counts):
                         df_reads = df_reads.rename(columns={
                             'Percentage of alignments': 'Percentage of Reads'})
                         plt = ezc.barplot(
-                            df_reads[['Reference', 'Percentage of Reads']])
+                            data=df_reads, x='Reference', y='Percentage of Reads')
                         plt.title = dict(text='Reads mapped/unmapped')
                         EZChart(plt, theme='epi2melabs', height='400px')
 
                         df_alns = df_sample[
                             ~df_sample.Reference.isin(['Mapped', 'Unmapped'])]
                         plt = ezc.barplot(
-                            df_alns[['Reference', 'Percentage of alignments']])
+                            data=df_alns, x='Reference', y='Percentage of alignments')
                         plt.title = dict(text='Alignment counts per target')
                         EZChart(plt, theme='epi2melabs', height='400px')
 
@@ -174,7 +174,7 @@ def plot_aav_structures(report, structures_file):
                         x='Assigned_genome_type',
                         y='percentage')
                     plt.title = dict(text='Genome types')
-                    plt.xAxis.axisLabel = dict(rotate=45)
+                    plt._fig.xaxis.major_label_orientation = 45
                     EZChart(plt, theme='epi2melabs')
 
                     # Table with counts and percentages
@@ -187,7 +187,7 @@ def main(args):
     logger = get_named_logger("Report")
     report = labs.LabsReport(
         "AAV QC workflow report", "wf-aav-qc",
-        args.params, args.versions)
+        args.params, args.versions, args.wf_version)
 
     with open(args.metadata) as metadata:
         sample_details = sorted([
@@ -198,10 +198,13 @@ def main(args):
             } for d in json.load(metadata)
         ], key=lambda d: d["sample"])
 
-    if args.stats:
-        with report.add_section("Read summary", "Read summary"):
-            # TODO fix this. Do we need o concat stats?
-            fastcat.SeqSummary(args.stats[0])
+    with report.add_section('Read summary', 'Read summary'):
+        names = tuple(d['sample'] for d in sample_details)
+        stats = tuple(args.stats)
+        if len(stats) == 1:
+            stats = stats[0]
+            names = names[0]
+        fastcat.SeqSummary(stats, sample_names=names)
 
     plot_contamination(
         report,
@@ -230,7 +233,8 @@ def argparser():
     parser.add_argument(
         "report", help="Report output file")
     parser.add_argument(
-        "--stats", nargs='*', help="Fastcat per-read stats file(s).")
+        "--stats", nargs='+',
+        help="Fastcat per-read stats, ordered as per entries in --metadata.")
     parser.add_argument(
         "--truncations", help="TSV with start and end columns for.")
     parser.add_argument(
@@ -254,4 +258,7 @@ def argparser():
     parser.add_argument(
         "--commit", default='unknown',
         help="git commit of the executed workflow")
+    parser.add_argument(
+        "--wf_version", default='unknown',
+        help="version of the executed workflow")
     return parser

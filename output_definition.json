@@ -8,14 +8,6 @@
       "optional": false,
       "type": "aggregated"
     },
-    "read-stats-per-read": {
-      "filepath": "./fastq_ingress_results/per-read-stats.tsv.gz",
-      "title": "Per file read stats",
-      "description": "A TSV with per read stats for all samples.",
-      "mime-type": "text/tab-separated-values",
-      "optional": false,
-      "type": "aggregated"
-    },
     "combined-reference": {
       "filepath": "./combined_reference.fa.gz",
       "title": "Combined reference sequence",

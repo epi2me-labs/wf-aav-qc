@@ -229,11 +229,9 @@ process contamination {
 
     output:
         path('contam_class_counts.tsv'), emit: contam_class_counts
-
+    script:
+        def n_reads = meta['n_seqs']
     """
-    # Get read IDs from either bamstats or fastcat stats file.
-    zcat < read_stats/*/*stats.tsv.gz | cut -f1 | tail -n +2 > read_ids.tsv
-
     workflow-glue contamination \
         --bam_info bam_info.tsv \
         --sample_id "$meta.alias" \
@@ -241,7 +239,7 @@ process contamination {
         --helper_fasta helper.fa \
         --rep_cap_fasta rep_cap.fa \
         --host_fasta  host_cell_line.fa \
-        --read_ids read_ids.tsv \
+        --n_reads $n_reads \
         --contam_class_counts contam_class_counts.tsv
     """
 }
@@ -380,36 +378,20 @@ process medaka_consensus {
 }
 
 
-process combine_stats {
-    label "wf_aav"
-    cpus 2
-    memory "2 GB"
-    input:
-        tuple val(meta),
-              path('per-read-stats.tsv.gz')
-        output:
-            path('stats.tsv')
-    """
-    gunzip -c per-read-stats.tsv.gz |
-        # Add sample_id column
-        sed "s/\$/\t${meta.alias}/" > stats.tsv
-    """
-}
-
-
 process makeReport {
-    label "wf_aav"
+    label "wf_common"
     cpus 2
     memory '4 GB'
     input:
         val metadata
-        path 'per_read_stats.tsv'
+        path stats, stageAs: "stats_*"
         path 'truncations.tsv'
         path 'itr_coverage.tsv'
         path 'contam_class_counts.tsv'
         path 'structure_counts.tsv'
         path "versions/*"
         path "params.json"
+        val wf_version
     output:
         path "wf-aav-qc-*.html"
     script:
@@ -418,8 +400,9 @@ process makeReport {
     """
     echo '${metadata}' > metadata.json
     workflow-glue report $report_name \
+        --wf_version $wf_version \
         --versions versions \
-        --stats per_read_stats.tsv \
+        --stats ${stats} \
         --params params.json \
         --metadata metadata.json \
         --truncations truncations.tsv \
@@ -461,9 +444,10 @@ workflow pipeline {
         ref_rep_cap
         ref_transgene_plasmid
     main:
-        per_read_stats = samples.flatMap {
-            it[2] ? file(it[2].resolve('*read*.tsv.gz')) : null
-        }
+        samples.multiMap{ meta, path, stats ->
+            meta: meta
+            stats: stats ?: OPTIONAL_FILE
+        }.set { for_report }
 
         get_ref_names(ref_transgene_plasmid)
         transgene_plasmid_name = get_ref_names.out.transgene_name.splitCsv().flatten().first()
@@ -472,7 +456,6 @@ workflow pipeline {
         software_versions = getVersions(medaka_version)
 
         workflow_params = getParams()
-        metadata = samples.map { it[0] }.toList()
 
         mask_transgene_reference(
             ref_transgene_plasmid, transgene_plasmid_name
@@ -534,25 +517,25 @@ workflow pipeline {
             transgene_plasmid_name
         )
 
+        metadata = for_report.meta.collect()
+        stats = for_report.stats.collect()
+
         report = makeReport(
             metadata,
-            samples.map { meta, reads, stats ->
-            stats ? [meta, file(stats.resolve('*read*.tsv.gz'))] : [null, null]
-        } | combine_stats | collectFile(keepHeader: true),
-
+            stats,
             truncations.out.locations.collectFile(keepHeader: true),
             itr_coverage.out.collectFile(keepHeader: true),
             contamination.out.contam_class_counts.collectFile(keepHeader: true),
             aav_structures.out.structure_counts.collectFile(keepHeader: true),
             software_versions.collect(),
-            workflow_params
+            workflow_params,
+            workflow.manifest.version
         )
 
     emit:
         telemetry = workflow_params
         workflow_params
         report
-        per_read_stats
         bam = map_to_combined_reference.out.bam
         bam_info = map_to_combined_reference.out.bam_info
         combined_reference = make_combined_reference.out.combined_reference
@@ -603,29 +586,27 @@ workflow {
         ref_rep_cap,
         ref_transgene_plasmid)
 
-    pipeline.out.per_read_stats
-    | map { [it, "fastq_ingress_results"] }
-    | concat (
-        pipeline.out.report.concat(pipeline.out.workflow_params)
-            | map { [it, null] },
-        pipeline.out.bam.flatMap {it ->
-            bam_and_indxs = []
-            for (i in it[1..2] ){
-                bam_and_indxs.add([i, it[0].alias])
-            }
+    sample_outputs = pipeline.out.bam.flatMap {it ->
+        // Split [meta, bam, bai] into [meta, bam], [meta, bai]
+        bam_and_indxs = []
+        for (file_ in it[1..2] ){
+            bam_and_indxs.add([it[0], file_])
+        }
             return bam_and_indxs
-        },
-        pipeline.out.bam_info.map {meta, item -> [item, meta.alias]},
-        pipeline.out.consensus
-            | concat(
-                pipeline.out.variants,
-                pipeline.out.per_read_genome_types
-            )
-            | map {[it[1], it[0].alias]},
-        pipeline.out.combined_reference
-            | map {[it, null]}
-    )
-    | output
+        }
+    .concat(
+        pipeline.out.bam_info,
+        pipeline.out.consensus,
+        pipeline.out.variants,
+        pipeline.out.per_read_genome_types)
+    .map {[it[1], it[0].alias]} // Get file and name of output subfolder
+
+    project_outputs = pipeline.out.combined_reference
+        .concat(pipeline.out.report)
+        | map {[it, null]} // No subfolder name as these are to go in output root
+
+    output(sample_outputs
+        .concat(project_outputs))
 }
 
 workflow.onComplete {

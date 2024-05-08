@@ -12,7 +12,7 @@ from .util import wf_parser  # noqa: ABS101
 
 def argparser():
     """Create argument parser."""
-    parser = wf_parser("truncations")
+    parser = wf_parser("contam")
 
     parser.add_argument(
         '--bam_info',
@@ -34,8 +34,8 @@ def argparser():
         '--host_fasta',
         help="The transgene plasmid fasta sequence")
     parser.add_argument(
-        '--read_ids',
-        help="TSV with containing all read IDs")
+        '--n_reads',
+        help="Total number of input reads", type=int)
     parser.add_argument(
         '--contam_class_counts', help="Contamination counts output", type=Path)
 
@@ -80,12 +80,13 @@ def main(args):
     df_bam.loc[df_bam.Ref == rep_cap_name, 'contam_class'] = 'Rep-cap'
     df_bam.loc[df_bam.Ref.isin(host_names), 'contam_class'] = 'Host cell'
 
-    # Count unmapped reads.
-    all_read_ids = pd.read_csv(args.read_ids, header=None)[0]
-    unmapped = len(all_read_ids[~all_read_ids.isin(df_bam.Read)])
     # Calculate mapped/unmapped as a percentage of reads not alignments.
-    unmapped_pct = 100 / len(all_read_ids) * unmapped
-    mapped = len(all_read_ids) - unmapped
+    # Note `seqkit bam` does not return info for unammoed reads, so we need to get the
+    # total number of input reads separately.
+    n_mapped_reads = df_bam.Read.nunique()
+    n_input_reads = args.n_reads
+    n_unmapped_reads = n_input_reads - n_mapped_reads
+    unmapped_pct = 100 / n_input_reads * n_unmapped_reads
     mapped_pct = 100 - unmapped_pct
 
     df_contam_class = pd.DataFrame(df_bam['contam_class'].value_counts())
@@ -93,8 +94,8 @@ def main(args):
     df_contam_class['Percentage of alignments'] = (
             100 / len(df_bam) * df_contam_class['Number of alignments']).round(2).T
     df_contam_class.index.name = 'Reference'
-    df_contam_class.loc['Unmapped'] = [unmapped, unmapped_pct]
-    df_contam_class.loc['Mapped'] = [mapped, mapped_pct]
+    df_contam_class.loc['Unmapped'] = [n_unmapped_reads, unmapped_pct]
+    df_contam_class.loc['Mapped'] = [n_mapped_reads, mapped_pct]
     df_contam_class['sample_id'] = args.sample_id
 
     df_lengths = df_bam[['ReadLen', 'contam_class']]

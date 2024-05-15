@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import polars as pl
+import pysam
 
 from .structure_definitions import (  # noqa: ABS101
     ReadType, AlnType, get_subtype_definitions
@@ -19,6 +20,14 @@ def argparser():
         help="File containing the output of seqkit bam",
         type=Path)
     parser.add_argument(
+        '--bam_in',
+        help="Path to BAM file to tag with assigned genome type",
+        type=Path)
+    parser.add_argument(
+        '--bam_out',
+        help="Out path for tagged BAM",
+        type=Path)
+    parser.add_argument(
         '--itr_locations', help="[itr1_start, itr1_end, itr2_start, itr_2_end]",
         nargs='*', type=int)
     parser.add_argument(
@@ -31,7 +40,7 @@ def argparser():
     parser.add_argument(
         '--itr_backbone_threshold',
         help=("Alignments starting this many bases or more before ITR1 or after ITR2 "
-              "will be clased as `backbone`"),
+              "will be classed as `backbone`"),
         type=int)
     parser.add_argument(
         '--transgene_plasmid_name',
@@ -49,7 +58,10 @@ def argparser():
         '--output_per_read',
         help="Path to output TSV for inclusion in output directory",
         type=Path)
-
+    parser.add_argument(
+        '--threads',
+        help="Threads to use for BAM tagging",
+        type=int)
     return parser
 
 
@@ -326,9 +338,29 @@ def annotate_reads(aln_df, type_definitions, symmetry_threshold):
         on=['Read', 'Assigned_genome_subtype'],
         how="anti"
     )
-    # f = final_df.to_pandas()
-    # f1 = f[f.Read.duplicated(keep=False)].sort_values('Read')
     return final_df
+
+
+def tag_bam(in_bam, out_bam, gtypes, threads):
+    """Tag the BAM with the assigned genome type."""
+    gtypes = gtypes.with_columns(
+        tag=pl.col('Assigned_genome_type')
+        .str.replace_all(' ', '_')
+        .str.to_lowercase())
+
+    threads = max(threads // 2, 1)
+
+    with pysam.AlignmentFile(
+            in_bam, 'rb', threads=threads) as bam_in:
+        with pysam.AlignmentFile(
+                out_bam, 'wb', template=bam_in, threads=threads) as bam_out:
+            for aln in bam_in.fetch():
+                if aln.query_name in gtypes['Read']:
+                    gtype = gtypes.filter(pl.col('Read') == aln.query_name)['tag'][0]
+                else:
+                    gtype = 'unclassified'
+                aln.set_tag('AV', gtype, value_type="Z")
+                bam_out.write(aln)
 
 
 def main(args):
@@ -447,3 +479,5 @@ def main(args):
     )
     # Write the summary
     data_for_plot.write_csv(args.output_plot_data, separator='\t')
+
+    tag_bam(args.bam_in, args.bam_out, per_read_summary, args.threads)

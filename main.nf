@@ -251,7 +251,9 @@ process aav_structures {
     memory '4 GB'
     input:
         tuple val(meta),
-              path("bam_info.tsv")
+              path("bam_info.tsv"),
+              path("sorted.bam"),
+              path("sorted.bam.bai")
         path("transgene_plasmid.fa")
         val(transgene_plasmid_name)
     output:
@@ -260,10 +262,17 @@ process aav_structures {
         tuple val(meta),
               path("*_aav_per_read_info.tsv"),
               emit: per_read_info
+        tuple val(meta),
+              path("tagged_bams/"),
+              emit: tagged_bams
     """
     export POLARS_MAX_THREADS=${task.cpus}
+    mkdir tagged_bams
+
     workflow-glue aav_structures \
         --bam_info bam_info.tsv \
+        --bam_in sorted.bam \
+        --bam_out tagged_bams/sorted.tagged.bam \
         --itr_locations \
             $params.itr1_start $params.itr1_end $params.itr2_start $params.itr2_end \
         --output_plot_data 'aav_structure_counts.tsv' \
@@ -272,7 +281,16 @@ process aav_structures {
         --transgene_plasmid_name "${transgene_plasmid_name}" \
         --itr_fl_threshold ${params.itr_fl_threshold} \
         --itr_backbone_threshold ${params.itr_backbone_threshold} \
-        --symmetry_threshold ${params.symmetry_threshold}
+        --symmetry_threshold ${params.symmetry_threshold} \
+        --threads ${params.threads}
+
+    # If required, split the BAM by the AV tag that has just been added
+    if [ "${params.output_genometype_bams}" == "true" ]; then
+        cd tagged_bams
+        samtools split -d AV -@${task.cpus} sorted.tagged.bam
+        rm sorted.tagged.bam
+        samtools index -M *.bam
+    fi
     """
 }
 
@@ -496,7 +514,8 @@ workflow pipeline {
         )
 
         aav_structures(
-            map_to_combined_reference.out.bam_info,
+            map_to_combined_reference.out.bam_info
+                .join(map_to_combined_reference.out.bam),
             ref_transgene_plasmid,
             transgene_plasmid_name
         )
@@ -536,7 +555,7 @@ workflow pipeline {
         telemetry = workflow_params
         workflow_params
         report
-        bam = map_to_combined_reference.out.bam
+        bam = aav_structures.out.tagged_bams
         bam_info = map_to_combined_reference.out.bam_info
         combined_reference = make_combined_reference.out.combined_reference
         consensus = medaka_consensus.out.consensus
@@ -586,27 +605,17 @@ workflow {
         ref_rep_cap,
         ref_transgene_plasmid)
 
-    sample_outputs = pipeline.out.bam.flatMap {it ->
-        // Split [meta, bam, bai] into [meta, bam], [meta, bai]
-        bam_and_indxs = []
-        for (file_ in it[1..2] ){
-            bam_and_indxs.add([it[0], file_])
-        }
-            return bam_and_indxs
-        }
+    pipeline.out.bam
     .concat(
         pipeline.out.bam_info,
         pipeline.out.consensus,
         pipeline.out.variants,
         pipeline.out.per_read_genome_types)
-    .map {[it[1], it[0].alias]} // Get file and name of output subfolder
-
-    project_outputs = pipeline.out.combined_reference
-        .concat(pipeline.out.report)
-        | map {[it, null]} // No subfolder name as these are to go in output root
-
-    output(sample_outputs
-        .concat(project_outputs))
+    .map {[it[1], it[0].alias]}
+    .concat(
+        pipeline.out.combined_reference
+            | map {[it, null]}) // The same across samples, so output to root output
+    | output
 }
 
 workflow.onComplete {

@@ -212,6 +212,13 @@
                     "default": "output",
                     "format": "directory-path",
                     "description": "Directory for output of all workflow results."
+                },
+                "output_genometype_bams": {
+                    "title": "Output BAMs by genome type",
+                    "type": "boolean",
+                    "default": false,
+                    "help": "Output individual BAM files by the assigned genome type.",
+                    "description": "If true, output a BAM file per identified AAV genome structure type. Otherwise output a BAM file per sample."
                 }
             }
         },

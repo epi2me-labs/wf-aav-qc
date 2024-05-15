@@ -79,3 +79,7 @@ There are two user-adjustable parameters relevant to this part of the workflow:
 * `--itr_backbone_threshold` (default 20). Reads mapping to the transgene plasmid sometimes extend beyond the ITRs. This parameter sets a maximum number of bases after which the read is classified as `backbone`.
 
 See the [AAV structures](#aav-structure-diagrams) section for some representative diagrams of AAV gene structures and how they are classified.
+
+At this stage, the BAM alignment files are tagged with `AV:Z` which associates each alignment with an assigned genotype, in the format `AV:Z:full_ssaav`.
+
+If --gtype_bams is set to `true`, these tagged BAMs are split on this tag into separate BAM files.

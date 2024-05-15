@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [Unreleased]
 ### Changed
 - Increase memory allocated to the medaka process.
+### Added
+- Tagging of BAMs with `AV:Z` specifying AAV genome type.
+- Option `--output_genometype_bams` to output BAMs by assigned genome type.
 
 ## [v1.0.3]
 ### Fixed

@@ -65,7 +65,7 @@
       "type": "per-sample"
     },
     "bam_all": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/sorted.tagged.bam",
+      "filepath": "./{{ alias }}/tagged_bams/sorted.tagged.bam",
       "title": "Alignment file",
       "description": "The resulting tagged BAM file from mapping reads to the combined reference.",
       "mime-type": "application/gzip",
@@ -73,7 +73,7 @@
       "type": "per-sample"
     },
     "bam_all_index": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/sorted.tagged.bam.bai",
+      "filepath": "./{{ alias }}/tagged_bams/sorted.tagged.bam.bai",
       "title": "Alignment index file",
       "description": "The index for the resulting tagged BAM file from mapping reads to the combined reference.",
       "mime-type": "application/gzip",
@@ -81,7 +81,7 @@
       "type": "per-sample"
     },
     "bam_backbone_contamination": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/backbone_contamination.bam",
+      "filepath": "./{{ alias }}/tagged_bams/backbone_contamination.bam",
       "title": "backbone_contamination alignment",
       "description": "The resulting tagged BAM file from mapping reads to the combined reference. This file contains alignmnets with the genotype assignment: backbone_contamination",
       "mime-type": "application/gzip",
@@ -89,7 +89,7 @@
       "type": "per-sample"
     },
     "bam_index_backbone_contamination": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/backbone_contamination.bam.bai",
+      "filepath": "./{{ alias }}/tagged_bams/backbone_contamination.bam.bai",
       "title": "backbone_contamination alignment index",
       "description": "The resulting tagged BAM index file from mapping reads to the combined reference. This indexes the file containing alignments with the genotype assignment: backbone_contamination",
       "mime-type": "application/gzip",
@@ -97,7 +97,7 @@
       "type": "per-sample"
     },
     "bam_full_ssaav": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/full_ssaav.bam",
+      "filepath": "./{{ alias }}/tagged_bams/full_ssaav.bam",
       "title": "full_ssaav alignment",
       "description": "The resulting tagged BAM file from mapping reads to the combined reference. This file contains alignmnets with the genotype assignment: full_ssaav",
       "mime-type": "application/gzip",
@@ -105,7 +105,7 @@
       "type": "per-sample"
     },
     "bam_index_full_ssaav": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/full_ssaav.bam.bai",
+      "filepath": "./{{ alias }}/tagged_bams/full_ssaav.bam.bai",
       "title": "full_ssaav alignment index",
       "description": "The resulting tagged BAM index file from mapping reads to the combined reference. This indexes the file containing alignments with the genotype assignment: full_ssaav",
       "mime-type": "application/gzip",
@@ -113,7 +113,7 @@
       "type": "per-sample"
     },
     "bam_partial_ssaav": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/partial_ssaav.bam",
+      "filepath": "./{{ alias }}/tagged_bams/partial_ssaav.bam",
       "title": "partial_ssaav alignment",
       "description": "The resulting tagged BAM file from mapping reads to the combined reference. This file contains alignmnets with the genotype assignment: partial_ssaav",
       "mime-type": "application/gzip",
@@ -121,7 +121,7 @@
       "type": "per-sample"
     },
     "bam_index_partial_ssaav": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/partial_ssaav.bam.bai",
+      "filepath": "./{{ alias }}/tagged_bams/partial_ssaav.bam.bai",
       "title": "partial_ssaav alignment index",
       "description": "The resulting tagged BAM index file from mapping reads to the combined reference. This indexes the file containing alignments with the genotype assignment: partial_ssaav",
       "mime-type": "application/gzip",
@@ -129,7 +129,7 @@
       "type": "per-sample"
     },
     "bam_full_scaav": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/full_scaav.bam",
+      "filepath": "./{{ alias }}/tagged_bams/full_scaav.bam",
       "title": "full_scaav alignment",
       "description": "The resulting tagged BAM file from mapping reads to the combined reference. This file contains alignmnets with the genotype assignment: full_scaav",
       "mime-type": "application/gzip",
@@ -137,7 +137,7 @@
       "type": "per-sample"
     },
     "bam_index_full_scaav": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/full_scaav.bam.bai",
+      "filepath": "./{{ alias }}/tagged_bams/full_scaav.bam.bai",
       "title": "full_scaav alignment index",
       "description": "The resulting tagged BAM index file from mapping reads to the combined reference. This indexes the file containing alignments with the genotype assignment: full_scaav",
       "mime-type": "application/gzip",
@@ -145,7 +145,7 @@
       "type": "per-sample"
     },
     "bam_itr_region_only": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/itr_region_only.bam",
+      "filepath": "./{{ alias }}/tagged_bams/itr_region_only.bam",
       "title": "itr_region_only alignment",
       "description": "The resulting tagged BAM file from mapping reads to the combined reference. This file contains alignmnets with the genotype assignment: itr_region_only",
       "mime-type": "application/gzip",
@@ -153,7 +153,7 @@
       "type": "per-sample"
     },
     "bam_index_itr_region_only": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/itr_region_only.bam.bai",
+      "filepath": "./{{ alias }}/tagged_bams/itr_region_only.bam.bai",
       "title": "itr_region_only alignment index",
       "description": "The resulting tagged BAM index file from mapping reads to the combined reference. This indexes the file containing alignments with the genotype assignment: itr_region_only",
       "mime-type": "application/gzip",
@@ -161,7 +161,7 @@
       "type": "per-sample"
     },
     "bam_complex": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/complex.bam",
+      "filepath": "./{{ alias }}/tagged_bams/complex.bam",
       "title": "complex alignment",
       "description": "The resulting tagged BAM file from mapping reads to the combined reference. This file contains alignmnets with the genotype assignment: complex",
       "mime-type": "application/gzip",
@@ -169,7 +169,7 @@
       "type": "per-sample"
     },
     "bam_index_complex": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/complex.bam.bai",
+      "filepath": "./{{ alias }}/tagged_bams/complex.bam.bai",
       "title": "complex alignment index",
       "description": "The resulting tagged BAM index file from mapping reads to the combined reference. This indexes the file containing alignments with the genotype assignment: complex",
       "mime-type": "application/gzip",
@@ -177,7 +177,7 @@
       "type": "per-sample"
     },
     "bam_partial_scaav": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/partial_scaav.bam",
+      "filepath": "./{{ alias }}/tagged_bams/partial_scaav.bam",
       "title": "partial_scaav alignment",
       "description": "The resulting tagged BAM file from mapping reads to the combined reference. This file contains alignmnets with the genotype assignment: partial_scaav",
       "mime-type": "application/gzip",
@@ -185,7 +185,7 @@
       "type": "per-sample"
     },
     "bam_index_partial_scaav": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/partial_scaav.bam.bai",
+      "filepath": "./{{ alias }}/tagged_bams/partial_scaav.bam.bai",
       "title": "partial_scaav alignment index",
       "description": "The resulting tagged BAM index file from mapping reads to the combined reference. This indexes the file containing alignments with the genotype assignment: partial_scaav",
       "mime-type": "application/gzip",
@@ -193,7 +193,7 @@
       "type": "per-sample"
     },
     "bam_unknown": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/unknown.bam",
+      "filepath": "./{{ alias }}/tagged_bams/unknown.bam",
       "title": "unknown alignment",
       "description": "The resulting tagged BAM file from mapping reads to the combined reference. This file contains alignmnets with the genotype assignment: unknown",
       "mime-type": "application/gzip",
@@ -201,7 +201,7 @@
       "type": "per-sample"
     },
     "bam_index_unknown": {
-      "filepath": "./{{ alias }}/{{ alias }}/tagged_bams/unknown.bam.bai",
+      "filepath": "./{{ alias }}/tagged_bams/unknown.bam.bai",
       "title": "unknown alignment index",
       "description": "The resulting tagged BAM index file from mapping reads to the combined reference. This indexes the file containing alignments with the genotype assignment: unknown",
       "mime-type": "application/gzip",

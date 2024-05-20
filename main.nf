@@ -4,6 +4,7 @@ import groovy.json.JsonBuilder
 nextflow.enable.dsl = 2
 
 include { fastq_ingress; xam_ingress } from './lib/ingress'
+include { configure_igv } from './lib/common'
 
 OPTIONAL_FILE = file("$projectDir/data/OPTIONAL_FILE")
 
@@ -100,41 +101,39 @@ process make_combined_reference {
     /*
     Make a reference file containing the sequences of the host reference and the plasmids used in the rAAV prep.
     */
-    label "wf_aav"
+    label "wf_common"
     cpus 2
     memory "2 GB"
     input:
           path(ref_host)
-          path("ref_helper.fa")
-          path("ref_rep_cap.fa")
-          path("masked_transgene_plasmid.fa")
+          path(ref_helper)
+          path(ref_rep_cap)
+          path(masked_transgene_plasmid)
     output:
-          path('combined_reference.fa.gz'),
-          emit: combined_reference
-    script:
-        def compress_ref = (ref_host.getExtension() == 'gz') ? 'true':'false'
+          tuple path('combined_reference.fa.gz'),
+                path('combined_reference.fa.gz.fai'),
+                path('combined_reference.fa.gz.gzi')
     """
-    if [[ $compress_ref == 'true' ]]; then
-        cp $ref_host combined_reference.fa.gz
-    else
-        cat $ref_host | gzip > combined_reference.fa.gz
-    fi
+    for ref in $ref_host $ref_helper $ref_rep_cap $masked_transgene_plasmid; do
+        if [[ \$ref == *.gz ]]; then
+            zcat \$ref | bgzip >> combined_reference.fa.gz
+        else
+            cat \$ref | bgzip >> combined_reference.fa.gz
+         fi
+    done
 
-    cat masked_transgene_plasmid.fa \
-        ref_helper.fa \
-        ref_rep_cap.fa \
-        | gzip >> combined_reference.fa.gz
+    samtools faidx combined_reference.fa.gz
     """
 }
 
-process make_index {
+process make_mmi_index {
     label "wf_aav"
     cpus Math.min(params.threads, 16)
     memory "16 GB"
     input:
         path "ref_genome.fasta"
     output:
-        path "genome_index.mmi", emit: index
+        path "genome_index.mmi"
     """
      minimap2 -t ${task.cpus} -I 16G -d genome_index.mmi ref_genome.fasta
     """
@@ -284,13 +283,15 @@ process aav_structures {
         --symmetry_threshold ${params.symmetry_threshold} \
         --threads ${params.threads}
 
-    # If required, split the BAM by the AV tag that has just been added
+    cd tagged_bams
+
+    # The BAMs output by aav_structures.py will contain a AV:Z tag that tags an alignment with its assigned genome type
+    # If params.output_genometype_bams is true, then split these tagged BAMs by the AV tag
     if [ "${params.output_genometype_bams}" == "true" ]; then
-        cd tagged_bams
         samtools split -d AV -@${task.cpus} sorted.tagged.bam
         rm sorted.tagged.bam
-        samtools index -M *.bam
     fi
+    samtools index -M *.bam
     """
 }
 
@@ -486,13 +487,14 @@ workflow pipeline {
             mask_transgene_reference.out.masked_transgene_plasmid
         )
 
-        make_index(
-            make_combined_reference.out.combined_reference
+        make_mmi_index(
+            make_combined_reference.out
+            .map { ref, idx, idx_gz -> ref }
         )
 
         map_to_combined_reference(
             samples.map {meta, reads, stats -> [meta, reads]},
-            make_index.out.index
+            make_mmi_index.out
         )
 
         truncations(
@@ -536,6 +538,27 @@ workflow pipeline {
             transgene_plasmid_name
         )
 
+        // For IGV, get the final paths of the published tagged BAMs.
+        // We don't know the identities of the final tagged BAMs because we may or may not be splitting them
+        // by AAV genome type. So get all of the files in the folder emitted by aav_structures
+        bams_and_indexes = aav_structures.out.tagged_bams
+        .flatMap { meta, dir ->
+                files = [];
+                dir.eachFile {files.add(meta['alias'] + '/tagged_bams/' + it.name)}
+                files }
+
+        refs = make_combined_reference.out
+        .flatMap {it.name}
+
+        igv_paths = bams_and_indexes.mix(refs)
+        .collectFile(name: 'igv_fofn.txt', newLine: true, sort: true)
+
+        configure_igv(
+            igv_paths,
+            transgene_plasmid_name,
+            [displayMode: "SQUISHED", colorBy: "strand"], //bam_extra_opts
+             "")
+
         metadata = for_report.meta.collect()
         stats = for_report.stats.collect()
 
@@ -550,14 +573,14 @@ workflow pipeline {
             workflow_params,
             workflow.manifest.version
         )
-
     emit:
+        igv_conf = configure_igv.out
         telemetry = workflow_params
         workflow_params
         report
         bam = aav_structures.out.tagged_bams
         bam_info = map_to_combined_reference.out.bam_info
-        combined_reference = make_combined_reference.out.combined_reference
+        combined_reference = make_combined_reference.out.flatten()
         consensus = medaka_consensus.out.consensus
         variants = medaka_consensus.out.variants
         per_read_genome_types = aav_structures.out.per_read_info
@@ -606,14 +629,15 @@ workflow {
         ref_transgene_plasmid)
 
     pipeline.out.bam
-    .concat(
+    .mix(
         pipeline.out.bam_info,
         pipeline.out.consensus,
         pipeline.out.variants,
         pipeline.out.per_read_genome_types)
     .map {[it[1], it[0].alias]}
-    .concat(
+    .mix(
         pipeline.out.combined_reference
+        .mix(pipeline.out.igv_conf)
             | map {[it, null]}) // The same across samples, so output to root output
     | output
 }

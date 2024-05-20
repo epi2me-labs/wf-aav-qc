@@ -16,6 +16,22 @@
       "optional": false,
       "type": "aggregated"
     },
+    "combined-reference-index": {
+      "filepath": "./combined_reference.fa.gz.fai",
+      "title": "Combined reference sequence index",
+      "description": "Index file for combined reference FASTA.",
+      "mime-type": "text/tab-separated-values",
+      "optional": false,
+      "type": "aggregated"
+    },
+    "compressed-combined-reference-index": {
+      "filepath": "./combined_reference.fa.gz.gzi",
+      "title": "Compressed combined reference sequence index",
+      "description": "Extra index file for combined reference FASTA (required because combined reference is bgzip-compressed).",
+      "mime-type": "application/octet-stream",
+      "optional": false,
+      "type": "aggregated"
+    },
     "per-read-alignment-info": {
       "filepath": "./{{ alias }}/{{ alias }}_bam_info.tsv",
       "title": "Per read alignment info",
@@ -191,6 +207,14 @@
       "mime-type": "application/gzip",
       "optional": true,
       "type": "per-sample"
+    },
+    "igv-config": {
+      "filepath": "./igv.json",
+      "title": "IGV config JSON file",
+      "description": "JSON file with IGV config options to be used by the EPI2ME Desktop Application.",
+      "mime-type": "application/json",
+      "optional": false,
+      "type": "aggregated"
     }
   }
 }

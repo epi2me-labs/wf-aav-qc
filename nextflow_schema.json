@@ -217,7 +217,7 @@
                     "title": "Output BAMs by genome type",
                     "type": "boolean",
                     "default": false,
-                    "help": "Output individual BAM files by the assigned genome type.",
+                    "help_text": "Output individual BAM files by the assigned genome type.",
                     "description": "If true, output a BAM file per identified AAV genome structure type. Otherwise output a BAM file per sample."
                 }
             }

@@ -148,6 +148,7 @@
             "allOf": [
                 {
                     "required": [
+                        "bins",
                         "ref_host",
                         "ref_helper",
                         "ref_rep_cap",

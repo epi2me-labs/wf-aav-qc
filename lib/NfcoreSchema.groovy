@@ -75,7 +75,6 @@ class NfcoreSchema {
             'ansi',
             'ansi-log',
             'bg',
-            'bins',
             'bucket-dir',
             'c',
             'cache',

@@ -490,7 +490,6 @@ workflow pipeline {
         )
 
         map_to_combined_reference(
-            bins,
             samples.map {meta, reads, stats -> [meta, reads]},
             make_index.out.index
         )

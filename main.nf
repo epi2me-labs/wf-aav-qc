@@ -177,7 +177,7 @@ process map_to_combined_reference {
         | samtools sort -o ${meta['alias']}_align.bam -
     fi
     samtools index ${meta['alias']}_align.bam
-    seqkit bam --bins $params.bins --img '${meta['alias']}_bam.png' ${meta['alias']}_align.bam 2> ${meta['alias']}_bam_info.tsv
+    seqkit bam --bins ${params.bins} --img '${meta['alias']}_bam.png' ${meta['alias']}_align.bam 2> ${meta['alias']}_bam_info.tsv
     """
 }
 
@@ -490,7 +490,7 @@ workflow pipeline {
         )
 
         map_to_combined_reference(
-            samples.map {meta, reads, bins, stats -> [meta, reads]},
+            samples.map {meta, reads, stats -> [meta, reads]},
             make_index.out.index
         )
 

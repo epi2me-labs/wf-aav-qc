@@ -19,6 +19,9 @@ def argparser():
         help="File containing the output of seqkit bam",
         type=Path)
     parser.add_argument(
+        '--bins', help="bins",
+        nargs='*', type=int)
+    parser.add_argument(
         '--itr_locations', help="[itr1_start, itr1_end, itr2_start, itr_2_end]",
         nargs='*', type=int)
     parser.add_argument(

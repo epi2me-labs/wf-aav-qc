@@ -55,4 +55,7 @@ def argparser():
     """Argument parser for entrypoint."""
     parser = wf_parser("check_bam_headers")
     parser.add_argument("input_path", type=Path, help="Path to target directory")
+    parser.add_argument(
+        '--bins', help="bins",
+        nargs='*', type=int)
     return parser

@@ -177,7 +177,7 @@ process map_to_combined_reference {
         | samtools sort -o ${meta['alias']}_align.bam -
     fi
     samtools index ${meta['alias']}_align.bam
-    seqkit bam --bins ${params.bins} --img '${meta['alias']}_bam.png' ${meta['alias']}_align.bam 2> ${meta['alias']}_bam_info.tsv
+    seqkit bam -B ${params.bins} ${meta['alias']}_align.bam 2> ${meta['alias']}_bam_info.tsv
     """
 }
 

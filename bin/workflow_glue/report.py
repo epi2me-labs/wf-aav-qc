@@ -116,8 +116,9 @@ def plot_contamination(report, class_counts):
         )
 
         with Grid():
-            plt = ezc.barplot()
+            
             for sample, df_sample in df_class_counts.groupby('sample_id'):
+                plt = ezc.barplot()
                 df_reads = df_sample[
                     df_sample.Reference.isin(['Mapped', 'Unmapped'])]
                 df_reads = df_reads.rename(columns={

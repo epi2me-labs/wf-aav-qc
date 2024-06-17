@@ -116,22 +116,22 @@ def plot_contamination(report, class_counts):
         )
 
         with Grid():
+            plt = ezc.barplot()
             for sample, df_sample in df_class_counts.groupby('sample_id'):
                 df_reads = df_sample[
                     df_sample.Reference.isin(['Mapped', 'Unmapped'])]
                 df_reads = df_reads.rename(columns={
                     'Percentage of alignments': 'Percentage of Reads'})
-                plt = ezc.barplot(
-                    df_reads[['Reference', 'Percentage of Reads']])
+                plt.subplot(df_reads[['Reference', 'Percentage of Reads']])
                 plt.title = dict(text='Reads mapped/unmapped')
                 EZChart(plt, theme='epi2melabs', height='400px')
 
                 df_alns = df_sample[
                     ~df_sample.Reference.isin(['Mapped', 'Unmapped'])]
-                plt = ezc.barplot(
+                plt2 = ezc.barplot(
                     df_alns[['Reference', 'Percentage of alignments']])
-                plt.title = dict(text='Alignment counts per target')
-                EZChart(plt, theme='epi2melabs', height='400px')
+                plt2.title = dict(text='Alignment counts per target')
+                EZChart(plt2, theme='epi2melabs', height='400px')
 
         # tabs = Tabs()
         # with tabs.add_dropdown_menu():

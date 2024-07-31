@@ -158,24 +158,15 @@ process map_to_combined_reference {
               emit: bam_info
 
     script:
-    def usebam = false
-    if (params.bam){
-        usebam = true
-    }
     // Keep two threads for samtools
     def mm2_threads = Math.max(task.cpus - 2, 1)
     """
-    if [[ "$usebam" == "true" ]]; then
-        samtools fastq reads.fastq.gz \
-        | minimap2 -ax map-ont --secondary=no -t ${mm2_threads} \
-            genome_index.mmi - \
-        | samtools sort -o ${meta['alias']}_align.bam -
-    else
-        minimap2 -ax map-ont --secondary=no -t ${mm2_threads} \
-            genome_index.mmi reads.fastq.gz \
-        | samtools sort -o ${meta['alias']}_align.bam -
-    fi
-    samtools index ${meta['alias']}_align.bam
+    minimap2 -ax map-ont --secondary=no -t ${mm2_threads} \
+        genome_index.mmi reads.fastq.gz \
+        | samtools sort - \
+            --write-index \
+            -o ${meta['alias']}_align.bam##idx##${meta['alias']}_align.bam.bai
+
     seqkit bam ${meta['alias']}_align.bam 2> ${meta['alias']}_bam_info.tsv
     """
 }
@@ -328,24 +319,7 @@ process itr_coverage {
 }
 
 
-process lookup_medaka_variant_model {
-    label "wf_aav"
-    cpus 1
-    memory "2 GB"
-    input:
-        path("lookup_table")
-        val basecall_model
-    output:
-        stdout
-    shell:
-    '''
-    medaka_model=$(workflow-glue resolve_medaka_model lookup_table '!{basecall_model}' "medaka_variant")
-    echo $medaka_model
-    '''
-}
-
-
-process medaka_consensus {
+process run_medaka {
     /*
     Generate a consensus sequence and a VCF with the variant sites from alignments mapping to the transgene plasmid.
     */
@@ -356,43 +330,45 @@ process medaka_consensus {
         tuple val(meta),
               path("align.bam"),
               path("align.bam.bai")
-        val(medaka_model)
         path('transgene_plasmid.fa')
         val(transgene_plasmid_name)
 
     output:
         tuple val(meta),
-              path("${meta.alias}.transgene_plasmsid_consensus.fasta.gz"),
-              emit: consensus
-       tuple val(meta),
-              path("${meta.alias}.transgene_plasmsid_sorted.vcf.gz"),
+              path("${meta.alias}.transgene_plasmid_sorted.vcf.gz"),
               emit: variants
+        tuple val(meta),
+              path("${meta.alias}.transgene_plasmid_consensus.fasta.gz"),
+              emit: consensus
     script:
-        def model = medaka_model
+    // we use `params.override_basecaller_cfg` if present; otherwise use
+    // `meta.basecall_models[0]` (there should only be one value in the list because
+    // we're running ingress with `allow_multiple_basecall_models: false`; note that
+    // `[0]` on an empty list returns `null`)
+    String basecall_model = params.override_basecaller_cfg ?: meta.basecall_models[0]
+    if (!basecall_model) {
+        error "Found no basecall model information in the input data for " + \
+            "sample '$meta.alias'. Please provide it with the " + \
+            "`--override_basecaller_cfg` parameter."
+    }
     """
     # Extract reads mapping to transgene plasmid
     samtools view align.bam -bh "${transgene_plasmid_name}" > transgene_reads.bam
     samtools index transgene_reads.bam
 
-    echo ${model}
-    echo ${medaka_model}
-
-    medaka consensus transgene_reads.bam "consensus_probs.hdf" \
-        --threads 2 --model ${model}
-
-    medaka stitch \
-        --threads 2 \
-         consensus_probs.hdf \
-         transgene_plasmid.fa \
-         "${meta.alias}.transgene_plasmsid_consensus.fasta"
-    bgzip "${meta.alias}.transgene_plasmsid_consensus.fasta"
+    medaka consensus transgene_reads.bam consensus_probs.hdf \
+        --threads $task.cpus --model "${basecall_model}:variant"
 
     medaka variant \
-         transgene_plasmid.fa \
-         consensus_probs.hdf \
-         "transgene_plasmid.vcf"
+        transgene_plasmid.fa \
+        consensus_probs.hdf \
+        "${meta.alias}.transgene_plasmid_sorted.vcf"
 
-   bcftools sort transgene_plasmid.vcf > "${meta.alias}.transgene_plasmsid_sorted.vcf.gz"
+    bgzip "${meta.alias}.transgene_plasmid_sorted.vcf"
+    bcftools index "${meta.alias}.transgene_plasmid_sorted.vcf.gz"
+    bcftools consensus "${meta.alias}.transgene_plasmid_sorted.vcf.gz" \
+        -f transgene_plasmid.fa \
+        -o "${meta.alias}.transgene_plasmid_consensus.fasta.gz"
     """
 }
 
@@ -522,18 +498,8 @@ workflow pipeline {
             transgene_plasmid_name
         )
 
-       if (params.medaka_model) {
-            log.warn "Overriding Medaka model with ${params.medaka_model}."
-            medaka_model = params.medaka_model
-       } else {
-            Path lookup_table = file(
-                "${projectDir}/data/medaka_models.tsv", checkIfExists: true)
-            medaka_model = lookup_medaka_variant_model(lookup_table, params.basecaller_cfg)
-       }
-
-        medaka_consensus(
+        run_medaka(
             map_to_combined_reference.out.bam,
-            medaka_model,
             ref_transgene_plasmid,
             transgene_plasmid_name
         )
@@ -581,8 +547,8 @@ workflow pipeline {
         bam = aav_structures.out.tagged_bams
         bam_info = map_to_combined_reference.out.bam_info
         combined_reference = make_combined_reference.out.flatten()
-        consensus = medaka_consensus.out.consensus
-        variants = medaka_consensus.out.variants
+        consensus = run_medaka.out.consensus
+        variants = run_medaka.out.variants
         per_read_genome_types = aav_structures.out.per_read_info
 }
 
@@ -601,18 +567,21 @@ workflow {
         "sample_sheet":params.sample_sheet,
         "analyse_unclassified":params.analyse_unclassified,
         "stats": true,
-        "fastcat_extra_args": ""])
+        "fastcat_extra_args": "",
+        "allow_multiple_basecall_models": false,
+    ])
     } else {
         // if we didn't get a `--fastq`, there must have been a `--bam` (as is codified
         // by the schema)
-         samples = xam_ingress([
-        "input":params.bam,
-        "sample":params.sample,
-        "sample_sheet":params.sample_sheet,
-        "analyse_unclassified":params.analyse_unclassified,
-        "keep_unaligned": true,
-        "return_fastq": true,
-        "stats": true
+        samples = xam_ingress([
+            "input":params.bam,
+            "sample":params.sample,
+            "sample_sheet":params.sample_sheet,
+            "analyse_unclassified":params.analyse_unclassified,
+            "keep_unaligned": true,
+            "return_fastq": true,
+            "stats": true,
+            "allow_multiple_basecall_models": false,
         ])
     }
 

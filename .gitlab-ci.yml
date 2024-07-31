@@ -5,7 +5,8 @@ include:
 
 variables:
     # We'll use the single-file case for these runs
-    NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB --fastq test_data/fastq --ref_host test_data/cell_line.fasta.gz --ref_helper test_data/helper.fasta --ref_rep_cap test_data/repcap.fasta  --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286 --ref_transgene_plasmid test_data/transgene.fasta --threads 4 "
+    NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/wf-aav-test-data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-aav-qc/test_data && tar -xzvf ${CI_PROJECT_NAME}/data/wf-aav-test-data.tar.gz -C ${CI_PROJECT_NAME}/data/"
+    NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB --fastq ${CI_PROJECT_NAME}/data/test_data/fastq --ref_host ${CI_PROJECT_NAME}/data/test_data/cell_line.fasta.gz --ref_helper ${CI_PROJECT_NAME}/data/test_data/helper.fasta --ref_rep_cap ${CI_PROJECT_NAME}/data/test_data/repcap.fasta  --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286 --ref_transgene_plasmid ${CI_PROJECT_NAME}/data/test_data/transgene.fasta --threads 4 "
     CI_FLAVOUR: "new" # set to "classic" for old-style CI
 
 # Remove this block in downstream templates
@@ -28,7 +29,8 @@ docker-run:
     parallel:
         matrix:
             - MATRIX_NAME: [
-                "fastq_input", "ubam_input", "fastq_input_splitbam"
+                "fastq_input", "ubam_input", "fastq_input_splitbam",
+                "no-basecall-model", "no-basecall-model-basecaller-cfg"
                 ]
     rules:
         # NOTE As we're overriding the rules block for the included docker-run
@@ -38,12 +40,20 @@ docker-run:
           when: never
         - if: $MATRIX_NAME == "fastq_input"
           variables:
-              NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB --fastq test_data/fastq --ref_host test_data/cell_line.fasta.gz --ref_helper test_data/helper.fasta --ref_rep_cap test_data/repcap.fasta --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286  --ref_transgene_plasmid test_data/transgene.fasta --threads 4"
-              NF_IGNORE_PROCESSES: "split_bams_by_structure"
+            NF_IGNORE_PROCESSES: "split_bams_by_structure"
+            # use default `NF_WORKFLOW_OPTS` defined above
         - if: $MATRIX_NAME == "ubam_input"
           variables:
-            NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB --bam test_data/ubam --ref_host test_data/cell_line.fasta.gz --ref_helper test_data/helper.fasta --ref_rep_cap test_data/repcap.fasta --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286  --ref_transgene_plasmid test_data/transgene.fasta --threads 4"
+            NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB --bam ${CI_PROJECT_NAME}/data/test_data/ubam --ref_host ${CI_PROJECT_NAME}/data/test_data/cell_line.fasta.gz --ref_helper ${CI_PROJECT_NAME}/data/test_data/helper.fasta --ref_rep_cap ${CI_PROJECT_NAME}/data/test_data/repcap.fasta --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286  --ref_transgene_plasmid ${CI_PROJECT_NAME}/data/test_data/transgene.fasta --threads 4"
             NF_IGNORE_PROCESSES: "split_bams_by_structure"
         - if: $MATRIX_NAME == "fastq_input_splitbam"
           variables:
-            NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB --fastq test_data/fastq --ref_host test_data/cell_line.fasta.gz --ref_helper test_data/helper.fasta --ref_rep_cap test_data/repcap.fasta --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286  --ref_transgene_plasmid test_data/transgene.fasta --output_genometype_bams --threads 4"
+            NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB --fastq ${CI_PROJECT_NAME}/data/test_data/fastq --ref_host ${CI_PROJECT_NAME}/data/test_data/cell_line.fasta.gz --ref_helper ${CI_PROJECT_NAME}/data/test_data/helper.fasta --ref_rep_cap ${CI_PROJECT_NAME}/data/test_data/repcap.fasta --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286  --ref_transgene_plasmid ${CI_PROJECT_NAME}/data/test_data/transgene.fasta --output_genometype_bams --threads 4"
+        - if: $MATRIX_NAME == "no-basecall-model"
+          variables:
+            NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB --fastq ${CI_PROJECT_NAME}/data/test_data/fastq-no-basecall-model --ref_host ${CI_PROJECT_NAME}/data/test_data/cell_line.fasta.gz --ref_helper ${CI_PROJECT_NAME}/data/test_data/helper.fasta --ref_rep_cap ${CI_PROJECT_NAME}/data/test_data/repcap.fasta --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286  --ref_transgene_plasmid ${CI_PROJECT_NAME}/data/test_data/transgene.fasta --threads 4"
+            ASSERT_NEXTFLOW_FAILURE: 1
+            ASSERT_NEXTFLOW_FAILURE_REXP: Found no basecall model information in the input data for sample .*\. Please provide it with the `--override_basecaller_cfg` parameter.
+        - if: $MATRIX_NAME == "no-basecall-model-basecaller-cfg"
+          variables:
+            NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB --fastq ${CI_PROJECT_NAME}/data/test_data/fastq-no-basecall-model --override_basecaller_cfg dna_r10.4.1_e8.2_400bps_hac@v4.2.0 --ref_host ${CI_PROJECT_NAME}/data/test_data/cell_line.fasta.gz --ref_helper ${CI_PROJECT_NAME}/data/test_data/helper.fasta --ref_rep_cap ${CI_PROJECT_NAME}/data/test_data/repcap.fasta --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286  --ref_transgene_plasmid ${CI_PROJECT_NAME}/data/test_data/transgene.fasta --threads 4"

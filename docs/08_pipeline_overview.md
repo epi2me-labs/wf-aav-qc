@@ -53,11 +53,11 @@ achieved across the transgene cassette.
 
 
 ### 5: Identification of transgene plasmid variants
-Variants are called using [medaka](https://github.com/nanoporetech/medaka), and a consensus sequence is generated for the transgene plasmid sequence  
-generating the following files: `output/{sample_id}.medaka_variants.vcf.gz`, `output/{sample_id}.medaka_consensus.fasta.gz`
+Transgene plasmid variants are called using [medaka](https://github.com/nanoporetech/medaka), producing a VCF file that is used to generate a consensus sequence using [bcftool concensus](https://samtools.github.io/bcftools/bcftools.html#consensus)
+The workflow selects the appropriate Medaka models based on the basecaller configuration that was used to process the signal data.
+By default, the workflow will attempt to determine the basecaller model from the input data.
+When this fails (or when you wish to override the automatic selection), it can be provided with `--override_basecaller_cfg`.
 
-A relevant user option for this part of the workflow is `--basecaller_cfg`. This is the name of the basecaller model that 
-was used to process the sequencing signal data. This is used to select the correct medaka model.
 
 
 ### 6: Identification of truncated regions

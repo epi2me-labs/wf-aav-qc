@@ -606,8 +606,8 @@ workflow {
     .map {[it[1], it[0].alias]}
     .mix(
         pipeline.out.combined_reference
-        .mix(pipeline.out.igv_conf)
-            | map {[it, null]}) // The same across samples, so output to root output
+        .mix(pipeline.out.igv_conf,  pipeline.out.report)
+            | map {[it, null]}) // Sample-aggregated results, so publish to root output
     | output
 }
 

@@ -393,6 +393,7 @@ process makeReport {
         String report_name = "wf-aav-qc-report.html"
         String metadata = new JsonBuilder(metadata).toPrettyString()
     """
+    touch 1
     echo '${metadata}' > metadata.json
     workflow-glue report $report_name \
         --wf_version $wf_version \

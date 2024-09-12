@@ -166,6 +166,7 @@ def plot_aav_structures(report, structures_file):
         with tabs.add_dropdown_menu():
 
             for sample, df_sample in df.groupby('sample_id'):
+
                 with tabs.add_dropdown_tab(sample):
                     df_sample = df_sample.sort_values('percentage', ascending=False)
                     # Plot of main genome type counts
@@ -179,6 +180,7 @@ def plot_aav_structures(report, structures_file):
 
                     # Table with counts and percentages
                     # (in lieu of being able to annotate bar plots in ezchrts)
+                    df_sample = df_sample.round({'count': 2, 'percentage': 2})
                     DataTable.from_pandas(df_sample, use_index=False)
 
 

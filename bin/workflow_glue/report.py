@@ -1,5 +1,6 @@
 """Create workflow report."""
 import json
+import math
 
 from dominate.tags import p
 import ezcharts as ezc
@@ -42,9 +43,8 @@ def plot_trucations(report, truncations_file):
                 with tabs.add_dropdown_tab(sample):
                     df_sample.drop(columns=['sample_id'], inplace=True)
                     plt = ezc.histplot(data=df_sample, binwidth=5)
-                    plt.xAxis = dict(name='Transgene cassette genome position')
-                    plt.yAxis = dict(name='Number of alignments')
-                    plt.legend = dict(orient='horizontal', top=30)
+                    plt._fig.xaxis.axis_label = 'Transgene cassette genome position'
+                    plt._fig.yaxis.axis_label = 'Number of alignments'
                     EZChart(plt, theme='epi2melabs')
 
 
@@ -74,13 +74,12 @@ def plot_itr_coverage(report, coverage_file):
                 with tabs.add_dropdown_tab(sample):
                     with Grid(columns=1):
                         for ref, df_ref in df_sample.groupby('ref'):
+
                             plt = ezc.lineplot(
-                                data=df_ref, x='pos', y='depth', hue='strand')
-                            plt.title = dict(text=ref)
-                            plt.legend = dict(
-                                orient='horizontal', top=30, icon='rect')
-                            for s in plt.series:
-                                s.showSymbol = False
+                                data=df_ref, title=ref,
+                                x='pos', y='depth', hue='strand',
+                                marker=False, s=2
+                            )
                             EZChart(plt, theme='epi2melabs', height='300px')
 
 
@@ -175,11 +174,11 @@ def plot_aav_structures(report, structures_file):
                         x='Assigned_genome_type',
                         y='percentage')
                     plt.title = dict(text='Genome types')
-                    plt._fig.xaxis.major_label_orientation = 45
+                    plt._fig.xaxis.major_label_orientation = 45 * (math.pi / 180)
                     EZChart(plt, theme='epi2melabs')
 
                     # Table with counts and percentages
-                    # (in lieu of being able to annotate bar plots in ezchrts)
+                    # (in lieu of being able to annotate bar plots in ezcharts)
                     df_sample = df_sample.round({'count': 2, 'percentage': 2})
                     DataTable.from_pandas(df_sample, use_index=False)
 

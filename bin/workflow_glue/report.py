@@ -179,7 +179,10 @@ def plot_aav_structures(report, structures_file):
 
                     # Table with counts and percentages
                     # (in lieu of being able to annotate bar plots in ezcharts)
-                    df_sample = df_sample.round({'count': 2, 'percentage': 2})
+                    df_sample = (
+                        df_sample.astype({'percentage': 'float64'})
+                        .round({'count': 2, 'percentage': 2})
+                    )
                     DataTable.from_pandas(df_sample, use_index=False)
 
 

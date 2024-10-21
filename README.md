@@ -159,6 +159,7 @@ input_reads.fastq   ─── input_directory  ─── input_directory
 | ref_host | string | The reference FASTA file for the host organism (.fasta/fasta.gz). |  |  |
 | ref_helper | string | The helper plasmid FASTA file. |  |  |
 | ref_rep_cap | string | The rep/cap plasmid FASTA file. |  |  |
+| non_transgene_refs | string | A path to a folder containing reference sequences for all non-transgene plasmid sequences. |  |  |
 | ref_transgene_plasmid | string | The transgene plasmid FASTA file. |  |  |
 
 
@@ -246,11 +247,16 @@ The following (Fig.1) is a basic schematic of the workflow:
 ### 1: Make a combined reference sequence 
 Reads can originate from the transgene cassette, but can also come from the other plasmids
 used in the rAAV prep as well as host cell DNA. Therefore, a combined reference is created
-that contains the following reference sequences:
-* host reference genome
-* Rep-Cap plasmid
-* helper plasmid 
-* transgene plasmid (variable ITR regions masked).
+that contains the following reference sequences (with relevant parameter):
+* transgene plasmid with variable ITR regions masked; see below (`ref_transgene_plasmid`).
+* host reference genome (`ref_host`)
+* Rep-Cap plasmid (`ref_rep_cap`)
+* helper plasmid (`ref_helper`)
+
+An alternative to supplying the non-transgene plasmid sequences individually is to place them into a folder and reference
+this folder with the parameter `non_transgene_refs`.
+
+
 
 The transgene plasmid ITR cassette will naturally exist in four orientations. 
 (termed flip-flip, flip-flop, flop-flop and flop-flip; see Fig.2)

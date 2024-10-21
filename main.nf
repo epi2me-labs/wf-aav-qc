@@ -99,28 +99,57 @@ process mask_transgene_reference {
 
 process make_combined_reference {
     /*
-    Make a reference file containing the sequences of the host reference and the plasmids used in the rAAV prep.
+    1) Make a reference file containing the sequences of the host reference and the plasmids used in the rAAV prep.
+    2) Get a mapping of reference file names to sequence IDs.
     */
-    label "wf_common"
+    label "wf_aav"
     cpus 2
     memory "2 GB"
     input:
-          path(ref_host)
-          path(ref_helper)
-          path(ref_rep_cap)
+          path("non_transgene_refs/*")
           path(masked_transgene_plasmid)
     output:
           tuple path('combined_reference.fa.gz'),
                 path('combined_reference.fa.gz.fai'),
-                path('combined_reference.fa.gz.gzi')
+                path('combined_reference.fa.gz.gzi'),
+                emit: combined_ref
+          path "reference_ids.json",
+                emit:ids_json
+    script:
+    def refs_in_dir = params.non_transgene_refs ? true:false
     """
-    for ref in $ref_host $ref_helper $ref_rep_cap $masked_transgene_plasmid; do
+    echo $refs_in_dir
+    if [ "$refs_in_dir" != "true" ]; then
+        # Ref files will be individual file paths
+        refs=\$(find non_transgene_refs/*)
+    else
+        # Ref files will be in a subdirectory
+        refdir=\$(find non_transgene_refs/*)
+        refs=\$(find \$refdir/*)
+    fi
+
+    echo \$refs
+
+    json="{\n"
+
+    for ref in \$refs ${masked_transgene_plasmid}; do
         if [[ \$ref == *.gz ]]; then
             zcat \$ref | bgzip >> combined_reference.fa.gz
         else
             cat \$ref | bgzip >> combined_reference.fa.gz
-         fi
+        fi
+        # Associate filename with sequence names
+        contig_ids=\$(seqkit seq --name --only-id "\${ref}" | awk '{printf "\\"%s\\",", \$0}')
+
+         # Remove the trailing comma from contig IDs
+        contig_ids=\$(echo \$contig_ids | sed 's/,\$//')
+        name=\$(basename \$ref)
+        json+="  \\"\$name\\": [ \$contig_ids ],\n"
     done
+
+    # Remove the trailing comma from the last entry and write to file.
+    echo \$json | sed '\$ s/,\$//' > "reference_ids.json"
+    echo "}" >> "reference_ids.json"
 
     samtools faidx combined_reference.fa.gz
     """
@@ -211,11 +240,9 @@ process contamination {
     input:
         tuple val(meta),
               path("bam_info.tsv"),
-              path('read_stats/')
-        path('transgene.fa')
-        path('helper.fa')
-        path('rep_cap.fa')
-        path('host_cell_line.fa')
+              path("read_stats/")
+        path("transgene.fa")
+        path("ref_ids.json")
 
     output:
         path('contam_class_counts.tsv'), emit: contam_class_counts
@@ -226,10 +253,8 @@ process contamination {
         --bam_info bam_info.tsv \
         --sample_id "$meta.alias" \
         --transgene_fasta transgene.fa \
-        --helper_fasta helper.fa \
-        --rep_cap_fasta rep_cap.fa \
-        --host_fasta  host_cell_line.fa \
         --n_reads $n_reads \
+        --ref_ids ref_ids.json \
         --contam_class_counts contam_class_counts.tsv
     """
 }
@@ -434,9 +459,7 @@ process output {
 workflow pipeline {
     take:
         samples
-        ref_host
-        ref_helper
-        ref_rep_cap
+        non_transgene_refs
         ref_transgene_plasmid
     main:
         samples.multiMap{ meta, path, stats ->
@@ -457,14 +480,12 @@ workflow pipeline {
         )
 
         make_combined_reference(
-            ref_host,
-            ref_helper,
-            ref_rep_cap,
+            non_transgene_refs,
             mask_transgene_reference.out.masked_transgene_plasmid
         )
 
         make_mmi_index(
-            make_combined_reference.out
+            make_combined_reference.out.combined_ref.first()
             .map { ref, idx, idx_gz -> ref }
         )
 
@@ -487,8 +508,9 @@ workflow pipeline {
 
         contamination(
             map_to_combined_reference.out.bam_info
-            | join(samples.map {meta, fastq, stats -> [meta, stats]}),
-            ref_transgene_plasmid, ref_helper, ref_rep_cap, ref_host
+                | join(samples.map {meta, fastq, stats -> [meta, stats]}),
+               ref_transgene_plasmid,
+               make_combined_reference.out.ids_json
         )
 
         aav_structures(
@@ -508,16 +530,16 @@ workflow pipeline {
         // We don't know the identities of the final tagged BAMs because we may or may not be splitting them
         // by AAV genome type. So get all of the files in the folder emitted by aav_structures
         bams_and_indexes = aav_structures.out.tagged_bams
-        .flatMap { meta, dir ->
+            .flatMap { meta, dir ->
                 files = [];
-                dir.eachFile {files.add(meta['alias'] + '/tagged_bams/' + it.name)}
+                dir.eachFile {files.add(meta['alias'] + ',' + meta['alias'] + '/tagged_bams/' + it.name)}
                 files }
 
-        refs = make_combined_reference.out
-        .flatMap {it.name}
+        refs = make_combined_reference.out.combined_ref
+            .flatMap {it.name}
 
         igv_paths = bams_and_indexes.mix(refs)
-        .collectFile(name: 'igv_fofn.txt', newLine: true, sort: true)
+            .collectFile(name: 'igv_fofn.txt', newLine: true, sort: true)
 
         configure_igv(
             igv_paths,
@@ -546,7 +568,7 @@ workflow pipeline {
         report
         bam = aav_structures.out.tagged_bams
         bam_info = map_to_combined_reference.out.bam_info
-        combined_reference = make_combined_reference.out.flatten()
+        combined_reference = make_combined_reference.out.combined_ref.flatten()
         consensus = run_medaka.out.consensus
         variants = run_medaka.out.variants
         per_read_genome_types = aav_structures.out.per_read_info
@@ -585,16 +607,23 @@ workflow {
         ])
     }
 
-    ref_host = file(params.ref_host, checkIfExists: true)
-    ref_helper = file(params.ref_helper, checkIfExists: true)
-    ref_rep_cap = file(params.ref_rep_cap, checkIfExists: true)
+     // It's possible to supply any number of reference files in a folder, but we allow specifying individual
+     // hist, rep-cap and helper plasmid for backwards compatibility.
+    if (params.non_transgene_refs){
+        non_transgene_refs = file(params.non_transgene_refs, checkIfExists: true)
+    }
+    else{
+        ref_host = file(params.ref_host, checkIfExists: true)
+        ref_helper = file(params.ref_helper, checkIfExists: true)
+        ref_rep_cap = file(params.ref_rep_cap, checkIfExists: true)
+        non_transgene_refs = Channel.of([ref_host, ref_helper, ref_rep_cap])
+    }
+
     ref_transgene_plasmid = file(params.ref_transgene_plasmid, checkIfExists: true)
 
     pipeline(
         samples,
-        ref_host,
-        ref_helper,
-        ref_rep_cap,
+        non_transgene_refs,
         ref_transgene_plasmid)
 
     pipeline.out.bam

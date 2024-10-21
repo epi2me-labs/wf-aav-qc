@@ -15,6 +15,7 @@
 | ref_host | string | The reference FASTA file for the host organism (.fasta/fasta.gz). |  |  |
 | ref_helper | string | The helper plasmid FASTA file. |  |  |
 | ref_rep_cap | string | The rep/cap plasmid FASTA file. |  |  |
+| non_transgene_refs | string | A path to a folder containing reference sequences for all non-transgene plasmid sequences. |  |  |
 | ref_transgene_plasmid | string | The transgene plasmid FASTA file. |  |  |
 
 

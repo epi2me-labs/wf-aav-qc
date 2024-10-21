@@ -98,6 +98,12 @@
                     "format": "file-path",
                     "description": "The rep/cap plasmid FASTA file."
                 },
+                "non_transgene_refs": {
+                    "title": "Non-transgene reference files",
+                    "type": "string",
+                    "format": "directory-path",
+                    "description": "A path to a folder containing reference sequences for all non-transgene plasmid sequences."
+                },
                 "ref_transgene_plasmid": {
                     "title": "Transgene plasmid",
                     "type": "string",
@@ -108,9 +114,6 @@
             "allOf": [
                 {
                     "required": [
-                        "ref_host",
-                        "ref_helper",
-                        "ref_rep_cap",
                         "ref_transgene_plasmid",
                         "itr1_start",
                         "itr1_end",
@@ -128,6 +131,22 @@
                         {
                             "required": [
                                 "bam"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "oneOf": [
+                        {
+                            "required": [
+                                "non_transgene_refs"
+                            ]
+                        },
+                        {
+                            "required": [
+                                "ref_host",
+                                "ref_helper",
+                                "ref_rep_cap"
                             ]
                         }
                     ]

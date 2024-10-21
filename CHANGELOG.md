@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Fixed
 - Rounding issues in genome structures table.
+### Added
+- Ability to load any number of non-transgene plasmid reference files in a directory with `--non_transgene_refs`.
 
 ## [v1.1.2]
 ### Updated 

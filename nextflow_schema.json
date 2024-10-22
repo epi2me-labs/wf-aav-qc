@@ -35,6 +35,13 @@
                     "description": "Analyse unclassified reads from input directory. By default the workflow will not process reads in the unclassified directory.",
                     "help_text": "If selected and if the input is a multiplex directory the workflow will also process the unclassified directory."
                 },
+                "transgene_bed": {
+                    "title": "feature BED",
+                    "type": "string",
+                    "format": "file-path",
+                    "description": "A BED file describing transgene plasmid feature locations.",
+                    "help_text": "A BED file with columns (1) plasmid_name (eg 'transgene_plasmid'); (2) feature start; (3) feature end; (4) feature name. If used, this file must minimally contain two rows; one for ITR1 and another for ITR2.The feature name must be ITR1 or ITR2 <br> Example row (separated by tabs): ```aav8    11      156     ITR1``` "
+                },
                 "itr_fl_threshold": {
                     "title": "ITR full length threshold",
                     "type": "integer",
@@ -114,11 +121,7 @@
             "allOf": [
                 {
                     "required": [
-                        "ref_transgene_plasmid",
-                        "itr1_start",
-                        "itr1_end",
-                        "itr2_start",
-                        "itr2_end"
+                        "ref_transgene_plasmid"
                     ]
                 },
                 {
@@ -135,7 +138,7 @@
                         }
                     ]
                 },
-                {
+              {
                     "oneOf": [
                         {
                             "required": [
@@ -147,6 +150,23 @@
                                 "ref_host",
                                 "ref_helper",
                                 "ref_rep_cap"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "oneOf": [
+                        {
+                            "required": [
+                                "transgene_bed"
+                            ]
+                        },
+                        {
+                            "required": [
+                                "itr1_start",
+                                "itr1_end",
+                                "itr2_start",
+                                "itr2_end"
                             ]
                         }
                     ]

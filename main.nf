@@ -84,13 +84,15 @@ process mask_transgene_reference {
         input:
             path("aav_transgene_plasmid.fa")
             val(transgene_plasmid_name)
+            val(itr_locs)
         output:
             path("itr_masked_transgene_plasmid.fasta"),
             emit: masked_transgene_plasmid
+    script:
     """
     workflow-glue mask_itrs \
         --transgene_plasmid_fasta "aav_transgene_plasmid.fa" \
-        --itr_locations $params.itr1_start $params.itr1_end $params.itr2_start $params.itr2_end \
+        --itr_locations $itr_locs.itr1_start $itr_locs.itr1_end $itr_locs.itr2_start $itr_locs.itr2_end \
         --outfile "itr_masked_transgene_plasmid.fasta" \
         --transgene_plasmid_name "${transgene_plasmid_name}"
     """
@@ -214,6 +216,7 @@ process truncations {
               path("bam_info.tsv")
         path("transgene_plasmid.fa")
         val(transgene_plasmid_name)
+        val(itr_locs)
 
     output:
         path('truncations.tsv'),
@@ -222,7 +225,7 @@ process truncations {
     """
     workflow-glue truncations \
         --bam_info bam_info.tsv \
-        --itr_range $params.itr1_start $params.itr2_end \
+        --itr_range $itr_locs.itr1_start $itr_locs.itr2_end \
         --transgene_plasmid_name "${transgene_plasmid_name}" \
         --outfile truncations.tsv \
         --sample_id "$meta.alias"
@@ -271,6 +274,7 @@ process aav_structures {
               path("sorted.bam.bai")
         path("transgene_plasmid.fa")
         val(transgene_plasmid_name)
+        val(itr_locs)
     output:
         path("aav_structure_counts.tsv"),
               emit: structure_counts
@@ -289,7 +293,7 @@ process aav_structures {
         --bam_in sorted.bam \
         --bam_out tagged_bams/sorted.tagged.bam \
         --itr_locations \
-            $params.itr1_start $params.itr1_end $params.itr2_start $params.itr2_end \
+            $itr_locs.itr1_start $itr_locs.itr1_end $itr_locs.itr2_start $itr_locs.itr2_end \
         --output_plot_data 'aav_structure_counts.tsv' \
         --output_per_read '${meta.alias}_aav_per_read_info.tsv' \
         --sample_id "${meta.alias}" \
@@ -325,6 +329,7 @@ process itr_coverage {
               path("align.bam.bai")
         path("transgene_plasmid.fa")
         val(transgene_plasmid_name)
+        val(itr_locs)
     output:
         path('itr_coverage_trimmed.tsv')
     """
@@ -339,7 +344,7 @@ process itr_coverage {
     # Trim the depth TSV to ITR-ITR regions only (+/- 10bp so that the expected dropoff either side is visible)
     echo -e "ref\tpos\tdepth\tstrand\tsample_id" > itr_coverage_trimmed.tsv
     cat itr_coverage_forward.tsv itr_coverage_reverse.tsv \
-        | awk  '\$2 > ${params.itr1_start} - 10 && \$2 < ${params.itr2_end} + 10' >> itr_coverage_trimmed.tsv
+        | awk  '\$2 > ${itr_locs.itr1_start} - 10 && \$2 < ${itr_locs.itr2_end} + 10' >> itr_coverage_trimmed.tsv
     """
 }
 
@@ -461,6 +466,7 @@ workflow pipeline {
         samples
         non_transgene_refs
         ref_transgene_plasmid
+        itr_locs
     main:
         samples.multiMap{ meta, path, stats ->
             meta: meta
@@ -476,7 +482,7 @@ workflow pipeline {
         workflow_params = getParams()
 
         mask_transgene_reference(
-            ref_transgene_plasmid, transgene_plasmid_name
+            ref_transgene_plasmid, transgene_plasmid_name, itr_locs
         )
 
         make_combined_reference(
@@ -497,13 +503,15 @@ workflow pipeline {
         truncations(
             map_to_combined_reference.out.bam_info,
             ref_transgene_plasmid,
-            transgene_plasmid_name
+            transgene_plasmid_name,
+            itr_locs
         )
 
         itr_coverage(
             map_to_combined_reference.out.bam,
             ref_transgene_plasmid,
-            transgene_plasmid_name
+            transgene_plasmid_name,
+            itr_locs
         )
 
         contamination(
@@ -517,7 +525,8 @@ workflow pipeline {
             map_to_combined_reference.out.bam_info
                 .join(map_to_combined_reference.out.bam),
             ref_transgene_plasmid,
-            transgene_plasmid_name
+            transgene_plasmid_name,
+            itr_locs
         )
 
         run_medaka(
@@ -530,7 +539,7 @@ workflow pipeline {
         // We don't know the identities of the final tagged BAMs because we may or may not be splitting them
         // by AAV genome type. So get all of the files in the folder emitted by aav_structures
         bams_and_indexes = aav_structures.out.tagged_bams
-            .flatMap { meta, dir ->
+        .flatMap { meta, dir ->
                 files = [];
                 dir.eachFile {files.add(meta['alias'] + ',' + meta['alias'] + '/tagged_bams/' + it.name)}
                 files }
@@ -619,12 +628,51 @@ workflow {
         non_transgene_refs = Channel.of([ref_host, ref_helper, ref_rep_cap])
     }
 
+    // Get the ITR positions
+    def itr_locs = [:]
+    if (params.transgene_bed){
+        log.info('Getting ITR locations from supplied BED file.')
+        valid_itrs = ['itr1', 'itr2']
+        file(params.transgene_bed).text.splitEachLine('\t') { line ->
+            def (ref, start, end, feature) = line
+
+            try {
+                start = start as Integer
+                end = end as Integer
+            } catch (Exception e) {
+                throw new Exception("Start and End must be valid integers in the BED file. Line: '${line}'")
+            }
+
+            if (start >= end){
+                throw new Exception("Start location must be lower than end location. Line: '${line}'")
+            }
+
+            String itr = feature.toLowerCase()
+            if (valid_itrs.contains(itr)) {
+                valid_itrs.remove(itr)
+                itr_locs[itr +'_start'] = start
+                itr_locs[itr +'_end'] = end
+            }
+        }
+        if (itr_locs.size() != 4){
+            throw new Exception("Transgene plasmid BED file must contain entries for ITR1 and ITR2")
+        }
+
+
+    } else {
+        log.info('Using ITR locations supplied at the command line.')
+        itr_locs['itr1_start'] = params.itr1_start
+        itr_locs['itr1_end'] = params.itr1_end
+        itr_locs['itr2_start'] = params.itr2_start
+        itr_locs['itr2_end'] = params.itr2_end
+    }
     ref_transgene_plasmid = file(params.ref_transgene_plasmid, checkIfExists: true)
 
     pipeline(
         samples,
         non_transgene_refs,
-        ref_transgene_plasmid)
+        ref_transgene_plasmid,
+        itr_locs)
 
     pipeline.out.bam
     .mix(

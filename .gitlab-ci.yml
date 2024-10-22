@@ -31,7 +31,7 @@ docker-run:
             - MATRIX_NAME: [
                 "fastq_input", "ubam_input", "fastq_input_splitbam",
                 "no-basecall-model", "no-basecall-model-basecaller-cfg",
-                "host_files_in_dir"
+                "itrs_from_bed", "host_files_in_dir"
                 ]
     rules:
         # NOTE As we're overriding the rules block for the included docker-run
@@ -58,6 +58,9 @@ docker-run:
         - if: $MATRIX_NAME == "no-basecall-model-basecaller-cfg"
           variables:
             NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB --fastq ${CI_PROJECT_NAME}/data/test_data/fastq-no-basecall-model --override_basecaller_cfg dna_r10.4.1_e8.2_400bps_hac@v4.2.0 --ref_host ${CI_PROJECT_NAME}/data/test_data/cell_line.fasta.gz --ref_helper ${CI_PROJECT_NAME}/data/test_data/helper.fasta --ref_rep_cap ${CI_PROJECT_NAME}/data/test_data/repcap.fasta --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286  --ref_transgene_plasmid ${CI_PROJECT_NAME}/data/test_data/transgene.fasta --threads 4"
+        - if: $MATRIX_NAME == "itrs_from_bed"
+          variables:
+            NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB --fastq ${CI_PROJECT_NAME}/data/test_data/fastq --transgene_bed ${CI_PROJECT_NAME}/data/test_data/sim.bed --ref_host ${CI_PROJECT_NAME}/data/test_data/cell_line.fasta.gz --ref_helper ${CI_PROJECT_NAME}/data/test_data/helper.fasta --ref_rep_cap ${CI_PROJECT_NAME}/data/test_data/repcap.fasta --ref_transgene_plasmid ${CI_PROJECT_NAME}/data/test_data/transgene.fasta --threads 4"
         - if: $MATRIX_NAME == "host_files_in_dir"
           variables:
             NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB --bam ${CI_PROJECT_NAME}/data/test_data/ubam  --non_transgene_refs ${CI_PROJECT_NAME}/data/test_data/non_transgene_refs/ --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286  --ref_transgene_plasmid ${CI_PROJECT_NAME}/data/test_data/transgene.fasta --threads 4"

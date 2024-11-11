@@ -538,23 +538,25 @@ workflow pipeline {
         // For IGV, get the final paths of the published tagged BAMs.
         // We don't know the identities of the final tagged BAMs because we may or may not be splitting them
         // by AAV genome type. So get all of the files in the folder emitted by aav_structures
-        bams_and_indexes = aav_structures.out.tagged_bams
-        .flatMap { meta, dir ->
-                files = [];
-                dir.eachFile {files.add(meta['alias'] + ',' + meta['alias'] + '/tagged_bams/' + it.name)}
-                files }
+         if (params.igv) {
+            bams_and_indexes = aav_structures.out.tagged_bams
+            .flatMap { meta, dir ->
+                    files = [];
+                    dir.eachFile {files.add(meta['alias'] + ',' + meta['alias'] + '/tagged_bams/' + it.name)}
+                    files }
 
-        refs = make_combined_reference.out.combined_ref
-            .flatMap {it.name}
+            refs = make_combined_reference.out.combined_ref
+                .flatMap {it.name}
 
-        igv_paths = bams_and_indexes.mix(refs)
-            .collectFile(name: 'igv_fofn.txt', newLine: true, sort: true)
+            igv_paths = bams_and_indexes.mix(refs)
+                .collectFile(name: 'igv_fofn.txt', newLine: true, sort: true)
 
-        configure_igv(
-            igv_paths,
-            transgene_plasmid_name,
-            [displayMode: "SQUISHED", colorBy: "strand"], //bam_extra_opts
-             "")
+            configure_igv(
+                igv_paths,
+                transgene_plasmid_name,
+                [displayMode: "SQUISHED", colorBy: "strand"],
+                 Channel.of(null))
+         }
 
         metadata = for_report.meta.collect()
         stats = for_report.stats.collect()
@@ -571,7 +573,6 @@ workflow pipeline {
             workflow.manifest.version
         )
     emit:
-        igv_conf = configure_igv.out
         telemetry = workflow_params
         workflow_params
         report
@@ -683,7 +684,7 @@ workflow {
     .map {[it[1], it[0].alias]}
     .mix(
         pipeline.out.combined_reference
-        .mix(pipeline.out.igv_conf,  pipeline.out.report)
+        .mix(pipeline.out.report)
             | map {[it, null]}) // Sample-aggregated results, so publish to root output
     | output
 }

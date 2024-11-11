@@ -209,6 +209,12 @@
                     "default": false,
                     "help_text": "Output individual BAM files by the assigned genome type.",
                     "description": "If true, output a BAM file per identified AAV genome structure type. Otherwise output a BAM file per sample."
+                },
+                "igv": {
+                    "type": "boolean",
+                    "default": false,
+                    "title": "IGV",
+                    "description": "Enable IGV visualisation in the EPI2ME Desktop Application by creating the required files."
                 }
             }
         },

@@ -59,7 +59,7 @@ class ReadType(str, Enum):
     par_ss = 'Partial ssAAV'
     unknown = 'Unknown'
 
-    par_icg = "Partial ICG - part of both ITRs"  # rename this var
+    par_icg = "Partial ICG - part of both ITRs"
     icg5 = '5` ICG'
     icg3 = '3` ICG'
     par_icg_incom_itrs = 'Partial ICG - incomplete ITRs'
@@ -200,6 +200,10 @@ def get_subtype_definitions():
             [AlnType.par_no_itr]
         ]),
 
+        ReadTypeDefinition(ReadType.par_icg, 1, 1, 1, [
+            [AlnType.par5_par3]
+        ]),
+
         # scAAV definitions
         # full_scAAV can have either 1 or two genome types
         #  so there's two definitions
@@ -280,6 +284,7 @@ def get_subtype_definitions():
         ReadTypeDefinition(ReadType.sbg3_asym, 2, 2, 1, [
             [AlnType.par_mid_full3, AlnType.par_mid_full3]], symmetry='start_asym'
                            ),
+        # scAAV with ITRs on one side only
         ReadTypeDefinition(ReadType.sbg_unresolved, 2, 2, 2, [
             [AlnType.par5_par3, AlnType.par_no_itr],
             [AlnType.par5_par_mid, AlnType.par_mid_par3],
@@ -326,9 +331,6 @@ def get_subtype_definitions():
         ]),
         ReadTypeDefinition(ReadType.itr1_2_cat, 2, 2, 2, [
             [AlnType.itr5_only, AlnType.itr3_only]
-        ]),
-        ReadTypeDefinition(ReadType.par_icg, 1, 1, 1, [
-            [AlnType.par5_par3]
         ]),
 
         # Single ITR

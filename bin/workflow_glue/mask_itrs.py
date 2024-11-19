@@ -24,7 +24,7 @@ def argparser():
     parser.add_argument(
         '--transgene_plasmid_fasta', help="Fasta file of the transgene plasmid")
     parser.add_argument(
-        '--itr_locations', help="[itr1_start, itr1_end, itr2_start, itr_2_end",
+        '--itr_locations', help="[itr1_start, itr1_end, itr2_start, itr_2_end]",
         nargs='*', type=int)
     parser.add_argument(
         '--transgene_plasmid_name', help='transgene plasmid name')

@@ -60,6 +60,7 @@ process get_ref_names {
 
 process getParams {
     label "wf_aav"
+    cache false
     cpus 1
     memory "2 GB"
     output:

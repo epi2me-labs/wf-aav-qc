@@ -3,7 +3,7 @@
     "$id": "https://raw.githubusercontent.com/./master/nextflow_schema.json",
     "title": "epi2me-labs/wf-aav-qc",
     "workflow_title": "AAV QC workflow",
-    "description": "Nextflow workflow for AAV vector quality control.",
+    "description": "QC of recombinant adeno-associated viral vector (rAAV) preparations.",
     "demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-aav-qc/wf-aav-qc-demo.tar.gz",
     "aws_demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-aav-qc/wf-aav-qc-demo/aws.nextflow.config",
     "url": "https://github.com/epi2me-labs/wf-aav-qc",

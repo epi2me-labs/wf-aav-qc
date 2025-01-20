@@ -1,6 +1,6 @@
 # AAV QC workflow
 
-Nextflow workflow for AAV vector quality control.
+QC of recombinant adeno-associated viral vector (rAAV) preparations.
 
 
 

@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
+### Fixed
+- partial ssAAV counts missing par_icg subtype counts.
 ### Changed
 - Reconciled workflow with wf-template v5.3.4.
 - Updated project description.

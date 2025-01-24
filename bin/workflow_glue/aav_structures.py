@@ -102,48 +102,65 @@ def assign_genome_types_to_alignments(
     end_in_midsection = (end > itr1_end) & (end < itr2_start)
 
     trans_df = trans_df.with_columns(
-        pl.when(full_5prime & full_3prime).then(AlnType.almost)
+        pl.when(full_5prime & full_3prime)
+        .then(AlnType.almost)
 
-        .when(partial_5prime & full_3prime).then(AlnType.par5_full3)
+        .when(partial_5prime & full_3prime)
+        .then(AlnType.par5_full3)
 
-        .when(partial_5prime & partial_3prime).then(AlnType.par5_par3)
+        .when(partial_5prime & partial_3prime)
+        .then(AlnType.par5_par3)
 
-        .when(full_5prime & partial_3prime).then(AlnType.full5_par3)
+        .when(full_5prime & partial_3prime)
+        .then(AlnType.full5_par3)
 
-        .when((start > itr1_end) & (end <= itr2_start)).then(AlnType.par_no_itr)
+        .when((start > itr1_end) & (end <= itr2_start))
+        .then(AlnType.par_no_itr)
 
-        .when(full_5prime & end_in_midsection).then(AlnType.full5_par_mid)
+        .when(full_5prime & end_in_midsection)
+        .then(AlnType.full5_par_mid)
 
-        .when(start_in_midsection & full_3prime).then(AlnType.par_mid_full3)
+        .when(start_in_midsection & full_3prime)
+        .then(AlnType.par_mid_full3)
 
-        .when(partial_5prime & end_in_midsection).then(AlnType.par5_par_mid)
+        .when(partial_5prime & end_in_midsection)
+        .then(AlnType.par5_par_mid)
 
-        .when(start_in_midsection & partial_3prime).then(AlnType.par_mid_par3)
+        .when(start_in_midsection & partial_3prime)
+        .then(AlnType.par_mid_par3)
 
         .when(
             (start >= itr1_start - itr_backbone_threshold) &
-            (end <= itr1_end)).then(AlnType.itr5_only)
+            (end <= itr1_end))
+        .then(AlnType.itr5_only)
 
         .when(
             (start >= itr2_start) &
-            (end <= itr2_end + itr_backbone_threshold)).then(AlnType.itr3_only)
+            (end <= itr2_end + itr_backbone_threshold))
+        .then(AlnType.itr3_only)
 
         .when(
             (start < itr1_start - itr_backbone_threshold) &
-            (end > itr2_end + itr_backbone_threshold)).then(AlnType.ext_itr)
+            (end > itr2_end + itr_backbone_threshold))
+        .then(AlnType.ext_itr)
 
         # Transgene plasmid backbone alignments
         .when(
             (start < itr1_start - itr_backbone_threshold) &
-            (end >= itr1_start)).then(AlnType.vec_bb_5)
+            (end >= itr1_start))
+        .then(AlnType.vec_bb_5)
 
         .when(
             (start <= itr2_end) &
-            (end > itr2_end + itr_backbone_threshold)).then(AlnType.vec_bb_3)
+            (end > itr2_end + itr_backbone_threshold))
+        .then(AlnType.vec_bb_3)
 
-        .when((start < itr1_start) & (end < itr1_start)).then(AlnType.bb)
+        # Backbone only, no transgene cassette sequence
+        .when((start < itr1_start) & (end < itr1_start))
+        .then(AlnType.bb)
 
-        .when((start > itr2_end) & (end > itr2_end)).then(AlnType.bb)
+        .when((start > itr2_end) & (end > itr2_end))
+        .then(AlnType.bb)
 
         # Unknown
         .otherwise(AlnType.unknown)
@@ -154,7 +171,7 @@ def assign_genome_types_to_alignments(
     return trans_df
 
 
-def annotate_reads(aln_df, type_definitions, symmetry_threshold):
+def annotate_reads(sample_id, aln_df, type_definitions, symmetry_threshold):
     """Assign each read an AAV ReadType annotation.
 
     Each read assigned to both of these categories:
@@ -317,11 +334,11 @@ def annotate_reads(aln_df, type_definitions, symmetry_threshold):
     )
     merged_df = pl.concat([all_reads_assigned_df, unknown_df], how='diagonal')
 
-    # Backbone fix.
-    # It's possible to get duplicate read assignments with backbone and another type
-    # For example complex (with 2 strands with overlap) can also have backbone in it
-    # If any read is assigned backbone, remove any other reads assigned to other
-    # categories
+    # Backbone duplicate read assignment fix.
+    # It's possible for a read to have backbone and other reads assignments.
+    # For example, complex (2 strands with overlap) can also contain vector backbone.
+    # If any read is assigned backbone, remove any other assignments to other
+    # categories.
     dups = merged_df.filter(pl.col("Read").is_duplicated())
 
     # Get read IDs that have backbone assignment
@@ -338,7 +355,55 @@ def annotate_reads(aln_df, type_definitions, symmetry_threshold):
         on=['Read', 'Assigned_genome_subtype'],
         how="anti"
     )
-    return final_df
+
+    # Assign subtypes to higher level Assigned_genome_type
+    per_read_info = final_df.with_columns(
+        pl.when(pl.col('Assigned_genome_subtype') == ReadType.bb_contam)
+        .then(ReadType.bb_contam)
+
+        .when(pl.col('Assigned_genome_subtype') == ReadType.full_ss)
+        .then(ReadType.full_ss)
+
+        .when(pl.col('Assigned_genome_subtype').is_in([
+            ReadType.icg5, ReadType.icg3, ReadType.par_icg_incom_itrs,
+            ReadType.par_icg_no_itrs, ReadType.par_icg, ReadType.gdm
+        ]))
+        .then(ReadType.par_ss)
+
+        .when(pl.col('Assigned_genome_subtype') == ReadType.full_sc)
+        .then(ReadType.full_sc)
+
+        .when(pl.col('Assigned_genome_subtype').is_in([
+            ReadType.itr1_cat, ReadType.itr2_cat, ReadType.itr1_2_cat,
+            ReadType.itr3_only, ReadType.itr5_only, ReadType.single_itr]))
+        .then(ReadType.itr_only)
+
+        .when(pl.col('Assigned_genome_subtype') == ReadType.complex_)
+        .then(ReadType.complex_)
+
+        .when(pl.col('Assigned_genome_subtype').is_in([
+            ReadType.sbg5, ReadType.sbg3, ReadType.sbg5_incomp,
+            ReadType.sbg3_incomp, ReadType.sbg_unresolved,
+            ReadType.sbg5_sym, ReadType.sbg5_asym,
+            ReadType.sbg5_incom_sym, ReadType.sbg3_sym, ReadType.sbg3_asym,
+            ReadType.sbg5_incom_asym, ReadType.sbg3_incom_sym, ReadType.sbg3_incom_asym
+        ]))
+        .then(ReadType.par_sc)
+
+        .otherwise(ReadType.unknown)
+        .alias('Assigned_genome_type')
+    )
+
+    # create summary
+    assigned_genome_types_summary = (
+        per_read_info.groupby('Assigned_genome_type').count()
+        .with_columns(
+            (pl.col('count') / pl.col('count').sum() * 100).round(2)
+            .alias('percentage'))
+        .with_columns(pl.lit(sample_id).alias('sample_id'))
+    )
+
+    return per_read_info, assigned_genome_types_summary
 
 
 def tag_bam(in_bam, out_bam, gtypes, threads):
@@ -412,72 +477,13 @@ def main(args):
     )
 
     # Assign final types to each read
-    df_assigned_reads = annotate_reads(
-        df_assigned_alns, get_subtype_definitions(), args.symmetry_threshold)
+    df_assigned_reads, type_summary = annotate_reads(
+        args.sample_id, df_assigned_alns, get_subtype_definitions(),
+        args.symmetry_threshold)
 
-    # Map SBG with symmetric subtypes up to SBG
-    # This is here as the tests are expecting the SBG subcategories.
-    df_assigned_reads = df_assigned_reads.with_columns(
-        pl.when(pl.col('Assigned_genome_subtype').is_in(
-            [ReadType.sbg5_sym, ReadType.sbg5_asym]))
-        .then(ReadType.sbg5)
-        .when(pl.col('Assigned_genome_subtype').is_in(
-            [ReadType.sbg3_sym, ReadType.sbg3_asym]))
-        .then(ReadType.sbg3)
-        .when(pl.col('Assigned_genome_subtype').is_in(
-            [ReadType.sbg5_incom_sym, ReadType.sbg5_incom_asym]))
-        .then(ReadType.sbg5_incomp)
-        .when(pl.col('Assigned_genome_subtype').is_in(
-            [ReadType.sbg3_incom_sym, ReadType.sbg3.sbg3_incom_asym]))
-        .then(ReadType.sbg3_incomp)
-        .otherwise(pl.col('Assigned_genome_subtype'))
-        .alias('Assigned_genome_subtype')
-    )
+    df_assigned_reads.write_csv(args.output_per_read, separator='\t')
 
-    # Add sample_id column
-    per_read_summary = (
-        df_assigned_reads.with_columns(pl.lit(args.sample_id).alias('sample_id'))
-    )
-    # Write the per read outputs with an assigned genome subtype.
-    per_read_summary.write_csv(args.output_per_read, separator='\t')
-    # Get the more coarse Assigned_genome_type for the plots.
-    per_read_summary = per_read_summary.with_columns(
-        pl.when(pl.col('Assigned_genome_subtype') == ReadType.bb_contam)
-        .then(ReadType.bb_contam)
-        .when(pl.col('Assigned_genome_subtype') == ReadType.full_ss)
-        .then(ReadType.full_ss)
-        .when(pl.col('Assigned_genome_subtype').is_in([
-            ReadType.icg5, ReadType.icg3, ReadType.par_icg_incom_itrs,
-            ReadType.par_icg_no_itrs, ReadType.gdm]))
-        .then(ReadType.par_ss)
-        .when(pl.col('Assigned_genome_subtype') == ReadType.full_sc)
-        .then(ReadType.full_sc)
-        .when(pl.col('Assigned_genome_subtype').is_in([
-            ReadType.itr1_cat, ReadType.itr2_cat, ReadType.itr1_2_cat,
-            ReadType.itr3_only, ReadType.itr5_only, ReadType.single_itr]))
-        .then(ReadType.itr_only)
-        .when(pl.col('Assigned_genome_subtype') == ReadType.complex_)
-        .then(ReadType.complex_)
-        .when(pl.col('Assigned_genome_subtype').is_in([
-            ReadType.sbg5, ReadType.sbg3, ReadType.sbg5_incomp,
-            ReadType.sbg3_incomp, ReadType.sbg_unresolved]))
-        .then(ReadType.par_sc)
-        .otherwise(ReadType.unknown)
-        .alias('Assigned_genome_type')
-    )
-
-    # create summary
-    assigned_genome_types_summary = (
-        per_read_summary.groupby('Assigned_genome_type').count()
-        .with_columns(
-            (pl.col('count') / pl.col('count').sum() * 100).round(2)
-            .alias('percentage'))
-    )
-    data_for_plot = (
-        assigned_genome_types_summary
-        .with_columns(pl.lit(args.sample_id).alias('sample_id'))
-    )
     # Write the summary
-    data_for_plot.write_csv(args.output_plot_data, separator='\t')
+    type_summary.write_csv(args.output_plot_data, separator='\t')
 
-    tag_bam(args.bam_in, args.bam_out, per_read_summary, args.threads)
+    tag_bam(args.bam_in, args.bam_out, df_assigned_reads, args.threads)

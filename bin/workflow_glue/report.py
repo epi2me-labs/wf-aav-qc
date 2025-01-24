@@ -118,6 +118,10 @@ def plot_contamination(report, class_counts):
         with tabs.add_dropdown_menu():
 
             for sample, df_sample in df_class_counts.groupby('sample_id'):
+                # Reference x-axis labels are taken from the refrence filenames.
+                # Trucate these to a maximum of 25 characters.
+                df_sample['Reference'] = df_sample['Reference'].apply(
+                    lambda x: x if len(x) < 25 else x[:22] + '...')
                 with tabs.add_dropdown_tab(sample):
                     with Grid(columns=2):
                         df_reads = df_sample[
@@ -127,12 +131,14 @@ def plot_contamination(report, class_counts):
                         plt = ezc.barplot(
                             data=df_reads, x='Reference', y='Percentage of Reads')
                         plt.title = dict(text='Reads mapped/unmapped')
+                        plt._fig.xaxis.major_label_orientation = 45 * (math.pi / 180)
                         EZChart(plt, theme='epi2melabs', height='400px')
 
                         df_alns = df_sample[
                             ~df_sample.Reference.isin(['Mapped', 'Unmapped'])]
                         plt = ezc.barplot(
                             data=df_alns, x='Reference', y='Percentage of alignments')
+                        plt._fig.xaxis.major_label_orientation = 45 * (math.pi / 180)
                         plt.title = dict(text='Alignment counts per target')
                         EZChart(plt, theme='epi2melabs', height='400px')
 

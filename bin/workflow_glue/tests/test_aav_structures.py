@@ -3,7 +3,7 @@
 The AAV structures process is formed of two main parts
 1: Assigning an AlnType to each alignment based on its start and end positions in
 relation to the ITR sequences
-2: Assigning A ReadType by looking at the individual AlnTypes of the read
+2: Assigning a ReadType by looking at the individual AlnTypes of the read
 """
 from pathlib import Path
 
@@ -73,31 +73,32 @@ def build_genome_type_df():
     - AlnType # This is the expected G
     """
     test_data_dir = Path(__file__).resolve().parent / 'data'
+    # Each AAV genome type has one or more example reads in structures.yaml
+    # Load these into a dataframe
     structures_config_file = test_data_dir / 'structures.yaml'
     with open(structures_config_file, 'r') as fh:
         cfg = yaml.load(fh, Loader=yaml.FullLoader)
 
     records = []
-    read_type_map = {}  # Reads to expected subtype mapping
+    read_to_type = []
 
-    for read_type in cfg['assigned_genome_subtypes']:
+    for read_type in cfg['genome_types']:
         for example in read_type['examples']:
-            # genome_type is what would have already been assigned to the alignment in
-            # assign_genome_types_to_alignments(), which will have been tested before
-            # running this test
             for aln, aln_type in example:
                 aln_info = aln.split()
                 read_id = aln_info[0]
                 records.append(
-                    [f'{read_id}'] + aln_info[1:] + [aln_type])
-                read_type_map[read_id] = read_type['read_type']
+                    [read_id] + aln_info[1:] + [aln_type])
+                read_to_type.append([
+                    read_id, read_type['genome_subtype'], read_type['genome_type']])
 
-    df = pd.DataFrame.from_records(records)
+    # Build the DataFrame that the test alignments will be generated from
+    df_alignments = pd.DataFrame.from_records(records)
     header = [
         'Read', 'Ref', 'Pos', 'EndPos', 'Strand',
         'IsSec', 'aln_type']
-    df.columns = header
-    df = df.astype({
+    df_alignments.columns = header
+    df_alignments = df_alignments.astype({
         'Read': str,
         'Ref': str,
         'Pos': int,
@@ -107,12 +108,11 @@ def build_genome_type_df():
     })
 
     df_read_subtype_map = (
-        pd.DataFrame.from_dict(read_type_map, orient='index')
-        .reset_index(drop=False)
+        pd.DataFrame.from_records(
+            read_to_type,
+            columns=['Read', 'Assigned_genome_subtype', 'Assigned_genome_type'])
     )
-    df_read_subtype_map.columns = ['Read', 'Assigned_genome_subtype']
-    dfp = pl.from_pandas(df)
-    return dfp, df_read_subtype_map
+    return pl.from_pandas(df_alignments), df_read_subtype_map
 
 
 def test_assign_genome_types_to_alignments():
@@ -124,7 +124,7 @@ def test_assign_genome_types_to_alignments():
     itr_fl_threshold = 100
     itr_backbone_threshold = 20
 
-    cfg, bam_info_df = build_bam_info()
+    _, bam_info_df = build_bam_info()
 
     result_df = assign_genome_types_to_alignments(
         bam_info_df,
@@ -150,17 +150,39 @@ def test_assign_genome_types_to_alignments():
 
 def test_annotate_reads():
     """Test assigning Assigned_genome_subtype to reads."""
-    df_subtype, read_to_subtype_map_df = build_genome_type_df()
+    df_alns, read_to_subtype_map_df = build_genome_type_df()
 
-    per_read_subtypes = annotate_reads(df_subtype, get_subtype_definitions(), 10)
+    actual_per_read_subtypes, actual_summary = annotate_reads(
+        'sample', df_alns, get_subtype_definitions(), symmetry_threshold=10)
 
-    # p = per_read_subtypes.to_pandas().sort_values('Read').reset_index(drop=True)
-    # t = read_to_subtype_map_df.sort_values('Read').reset_index(drop=True)
-
-    expected = pl.from_pandas(read_to_subtype_map_df).sort('Read')
-    actual = per_read_subtypes.select(['Read', 'Assigned_genome_subtype']).sort('Read')
+    expected_per_read_info = (
+        pl.from_pandas(read_to_subtype_map_df)
+        .unique(subset='Read')
+        .sort('Read'))
 
     assert_frame_equal(
-        expected, actual,
+        expected_per_read_info,
+        actual_per_read_subtypes.select(
+            ['Read', 'Assigned_genome_subtype', 'Assigned_genome_type']),
+        check_dtype=False, check_row_order=False, check_column_order=False
+    )
+
+    expected_summary = pl.from_pandas(pd.DataFrame({
+        "Assigned_genome_type": [
+            "Full_ssAAV",
+            "Full_scAAV",
+            "Partial ssAAV",
+            "Partial scAAV",
+            "ITR region only",
+            "Complex",
+            "Backbone contamination"
+        ],
+        "count": [1, 2, 10, 19, 3, 2, 3],
+        "percentage": [2.5, 5.0, 25.0, 47.5, 7.5, 5.0, 7.5],
+        "sample_id": ["sample"] * 7,
+    }))
+
+    assert_frame_equal(
+        expected_summary, actual_summary,
         check_dtype=False, check_row_order=False, check_column_order=False
     )

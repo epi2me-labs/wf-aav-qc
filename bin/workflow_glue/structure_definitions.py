@@ -37,6 +37,7 @@ class AlnType(str, Enum):
     # Transgene plamsid backbone alignments
     vec_bb_5 = 'Vector backbone - 5` end'
     vec_bb_3 = 'Vector backbone - 3` end'
+    # Backbone only, no transgene cassette sequence
     bb = 'Backbone'
 
     ext_itr = 'Extended ITR-ITR region'

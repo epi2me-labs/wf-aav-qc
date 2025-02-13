@@ -161,7 +161,7 @@ process make_combined_reference {
 process make_mmi_index {
     label "wf_aav"
     cpus Math.min(params.threads, 16)
-    memory "16 GB"
+    memory "15 GB"
     input:
         path "ref_genome.fasta"
     output:
@@ -175,7 +175,7 @@ process make_mmi_index {
 process map_to_combined_reference {
     label "wf_aav"
     cpus Math.min(params.threads, 16)
-    memory "16 GB"
+    memory "15 GB"
     input:
         tuple val(meta),
               path("reads.fastq.gz")

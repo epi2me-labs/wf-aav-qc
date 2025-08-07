@@ -6,9 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Fixed
+- Updated to wf-template v5.6.2, fixing:
+    - Sequence summary read length N50 incorrectly displayed minimum read length, it now correctly shows the N50.
+    - Sequence summary component alignment and coverage plots failed to plot under some conditions.
+- `store_dir` parameter format incorrectly declared in the schema. This does not affect this workflow as it does not use the storeDir directive and has been changed to maintain compliance with our latest testing standard.
 - partial ssAAV counts missing par_icg subtype counts.
 ### Changed
-- Reconciled workflow with wf-template v5.3.4.
+- Updated to wf-template v5.6.2, changing:
+    - Reduce verbosity of debug logging from fastcat which can occasionally occlude errors found in FASTQ files during ingress.
+    - Log banner art to say "EPI2ME" instead of "EPI2ME Labs" to match current branding. This has no effect on the workflow outputs.
+    - pre-commit configuration to resolve an internal dependency problem with flake8. This has no effect on the workflow.
+    - Unexpected workflow parameters now cause the workflow to fail.
+    - Sample sheets must not contain an alias that starts with "barcode".
 - Updated project description.
 - Minor decrease to some memory directives to avoid “Process requirement exceeds available memory” errors when running in WSL.
 

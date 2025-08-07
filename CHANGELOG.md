@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Sequence summary component alignment and coverage plots failed to plot under some conditions.
 - `store_dir` parameter format incorrectly declared in the schema. This does not affect this workflow as it does not use the storeDir directive and has been changed to maintain compliance with our latest testing standard.
 - partial ssAAV counts missing par_icg subtype counts.
+- Samples missing from drop down box in contamination section of the report.
 ### Changed
 - Updated to wf-template v5.6.2, changing:
     - Reduce verbosity of debug logging from fastcat which can occasionally occlude errors found in FASTQ files during ingress.

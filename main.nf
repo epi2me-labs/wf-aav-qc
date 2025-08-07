@@ -117,7 +117,7 @@ process make_combined_reference {
                 path('combined_reference.fa.gz.gzi'),
                 emit: combined_ref
           path "reference_ids.json",
-                emit:ids_json
+                emit: ref_ids_json
     script:
     def refs_in_dir = params.non_transgene_refs ? true:false
     """
@@ -519,7 +519,7 @@ workflow pipeline {
             map_to_combined_reference.out.bam_info
                 | join(samples.map {meta, fastq, stats -> [meta, stats]}),
                ref_transgene_plasmid,
-               make_combined_reference.out.ids_json
+               make_combined_reference.out.ref_ids_json.first()
         )
 
         aav_structures(

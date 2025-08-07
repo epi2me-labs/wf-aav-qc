@@ -556,7 +556,8 @@ workflow pipeline {
                 igv_paths,
                 transgene_plasmid_name,
                 [displayMode: "SQUISHED", colorBy: "strand"],
-                 Channel.of(null))
+                 Channel.of(null), // Variant extra opts
+                 Channel.of(false)) // Keep track order
          }
 
         metadata = for_report.meta.collect()

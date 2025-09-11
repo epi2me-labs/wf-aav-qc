@@ -65,6 +65,11 @@ def argparser():
     return parser
 
 
+def _l(x):
+    """Convert string to polars literal."""
+    return pl.lit(x.value)
+
+
 def assign_genome_types_to_alignments(
         trans_df, itr1_start, itr1_end, itr2_start, itr2_end,
         itr_fl_threshold, itr_backbone_threshold):
@@ -103,67 +108,67 @@ def assign_genome_types_to_alignments(
 
     trans_df = trans_df.with_columns(
         pl.when(full_5prime & full_3prime)
-        .then(AlnType.almost)
+        .then(_l(AlnType.almost))
 
         .when(partial_5prime & full_3prime)
-        .then(AlnType.par5_full3)
+        .then(_l(AlnType.par5_full3))
 
         .when(partial_5prime & partial_3prime)
-        .then(AlnType.par5_par3)
+        .then(_l(AlnType.par5_par3))
 
         .when(full_5prime & partial_3prime)
-        .then(AlnType.full5_par3)
+        .then(_l(AlnType.full5_par3))
 
         .when((start > itr1_end) & (end <= itr2_start))
-        .then(AlnType.par_no_itr)
+        .then(_l(AlnType.par_no_itr))
 
         .when(full_5prime & end_in_midsection)
-        .then(AlnType.full5_par_mid)
+        .then(_l(AlnType.full5_par_mid))
 
         .when(start_in_midsection & full_3prime)
-        .then(AlnType.par_mid_full3)
+        .then(_l(AlnType.par_mid_full3))
 
         .when(partial_5prime & end_in_midsection)
-        .then(AlnType.par5_par_mid)
+        .then(_l(AlnType.par5_par_mid))
 
         .when(start_in_midsection & partial_3prime)
-        .then(AlnType.par_mid_par3)
+        .then(_l(AlnType.par_mid_par3))
 
         .when(
             (start >= itr1_start - itr_backbone_threshold) &
             (end <= itr1_end))
-        .then(AlnType.itr5_only)
+        .then(_l(AlnType.itr5_only))
 
         .when(
             (start >= itr2_start) &
             (end <= itr2_end + itr_backbone_threshold))
-        .then(AlnType.itr3_only)
+        .then(_l(AlnType.itr3_only))
 
         .when(
             (start < itr1_start - itr_backbone_threshold) &
             (end > itr2_end + itr_backbone_threshold))
-        .then(AlnType.ext_itr)
+        .then(_l(AlnType.ext_itr))
 
         # Transgene plasmid backbone alignments
         .when(
             (start < itr1_start - itr_backbone_threshold) &
             (end >= itr1_start))
-        .then(AlnType.vec_bb_5)
+        .then(_l(AlnType.vec_bb_5))
 
         .when(
             (start <= itr2_end) &
             (end > itr2_end + itr_backbone_threshold))
-        .then(AlnType.vec_bb_3)
+        .then(_l(AlnType.vec_bb_3))
 
         # Backbone only, no transgene cassette sequence
         .when((start < itr1_start) & (end < itr1_start))
-        .then(AlnType.bb)
+        .then(_l(AlnType.bb))
 
         .when((start > itr2_end) & (end > itr2_end))
-        .then(AlnType.bb)
+        .then(_l(AlnType.bb))
 
         # Unknown
-        .otherwise(AlnType.unknown)
+        .otherwise(_l(AlnType.unknown))
 
         .alias('aln_type')
     )
@@ -189,7 +194,7 @@ def annotate_reads(sample_id, aln_df, type_definitions, symmetry_threshold):
     # Aggregate Alignments on Read. Apply some read summary info back to the alignment
     # DataFrame
     aln_df = aln_df.join(
-        other=aln_df.groupby('Read')
+        other=aln_df.group_by('Read')
         .agg(
             (pl.col('Strand').unique().count().alias('n_strands')),
             (pl.count('aln_type').alias('n_alignments')),
@@ -206,11 +211,11 @@ def annotate_reads(sample_id, aln_df, type_definitions, symmetry_threshold):
             (pl.col('n_strands') == 2) &
             (pl.col('n_alignments') == 2)
         )
-        .groupby('Read')
+        .group_by('Read')
         .agg(
-            ((pl.col('Pos').take(0) - pl.col('Pos').take(1)).abs()
+            ((pl.col('Pos').get(0) - pl.col('Pos').get(1)).abs()
              <= symmetry_threshold).alias('5prime_sym'),
-            ((pl.col('EndPos').take(0) - pl.col('EndPos').take(1)).abs()
+            ((pl.col('EndPos').get(0) - pl.col('EndPos').get(1)).abs()
              <= symmetry_threshold).alias('3prime_sym')
         )
     )
@@ -282,7 +287,7 @@ def annotate_reads(sample_id, aln_df, type_definitions, symmetry_threshold):
                 )
         # Apply the aln_type expressions
         assigned_reads_df = (
-            df_subtype.groupby('Read')
+            df_subtype.group_by('Read')
             .agg(
                 pl.any_horizontal(aln_type_expressions)
                 .alias('Assigned_genome_subtype'))
@@ -323,7 +328,7 @@ def annotate_reads(sample_id, aln_df, type_definitions, symmetry_threshold):
     unknown_df = (
         (
           aln_df.filter(
-              pl.col('Read').is_in(all_reads_assigned_df['Read']).is_not())[
+              ~pl.col('Read').is_in(all_reads_assigned_df['Read']))[
               ['Read']]
         ).unique()
         .with_columns(
@@ -359,27 +364,27 @@ def annotate_reads(sample_id, aln_df, type_definitions, symmetry_threshold):
     # Assign subtypes to higher level Assigned_genome_type
     per_read_info = final_df.with_columns(
         pl.when(pl.col('Assigned_genome_subtype') == ReadType.bb_contam)
-        .then(ReadType.bb_contam)
+        .then(_l(ReadType.bb_contam))
 
         .when(pl.col('Assigned_genome_subtype') == ReadType.full_ss)
-        .then(ReadType.full_ss)
+        .then(_l(ReadType.full_ss))
 
         .when(pl.col('Assigned_genome_subtype').is_in([
             ReadType.icg5, ReadType.icg3, ReadType.par_icg_incom_itrs,
             ReadType.par_icg_no_itrs, ReadType.par_icg, ReadType.gdm
         ]))
-        .then(ReadType.par_ss)
+        .then(_l(ReadType.par_ss))
 
         .when(pl.col('Assigned_genome_subtype') == ReadType.full_sc)
-        .then(ReadType.full_sc)
+        .then(_l(ReadType.full_sc))
 
         .when(pl.col('Assigned_genome_subtype').is_in([
             ReadType.itr1_cat, ReadType.itr2_cat, ReadType.itr1_2_cat,
             ReadType.itr3_only, ReadType.itr5_only, ReadType.single_itr]))
-        .then(ReadType.itr_only)
+        .then(_l(ReadType.itr_only))
 
         .when(pl.col('Assigned_genome_subtype') == ReadType.complex_)
-        .then(ReadType.complex_)
+        .then(_l(ReadType.complex_))
 
         .when(pl.col('Assigned_genome_subtype').is_in([
             ReadType.sbg5, ReadType.sbg3, ReadType.sbg5_incomp,
@@ -388,15 +393,16 @@ def annotate_reads(sample_id, aln_df, type_definitions, symmetry_threshold):
             ReadType.sbg5_incom_sym, ReadType.sbg3_sym, ReadType.sbg3_asym,
             ReadType.sbg5_incom_asym, ReadType.sbg3_incom_sym, ReadType.sbg3_incom_asym
         ]))
-        .then(ReadType.par_sc)
+        .then(_l(ReadType.par_sc))
 
-        .otherwise(ReadType.unknown)
+        .otherwise(_l(ReadType.unknown))
         .alias('Assigned_genome_type')
     )
 
     # create summary
     assigned_genome_types_summary = (
-        per_read_info.groupby('Assigned_genome_type').count()
+        per_read_info.group_by('Assigned_genome_type').len()
+        .rename({'len': 'count'})
         .with_columns(
             (pl.col('count') / pl.col('count').sum() * 100).round(2)
             .alias('percentage'))

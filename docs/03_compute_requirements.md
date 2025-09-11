@@ -10,4 +10,4 @@ Minimum requirements:
 
 Approximate run time: 15 minutes per sample - 150k reads and 8 cpus
 
-ARM processor support: False
+ARM processor support: True

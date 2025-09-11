@@ -356,6 +356,6 @@
             "memory": "16GB"
         },
         "run_time": "15 minutes per sample - 150k reads and 8 cpus",
-        "arm_support": false
+        "arm_support": true
     }
 }

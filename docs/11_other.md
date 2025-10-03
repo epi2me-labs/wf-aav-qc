@@ -139,5 +139,11 @@ An allowance can be made for some backbone plasmid contamination, and this can b
 </figure>
 
 
-#### 3.4 Complex
-The complex category contains reads with 3 or more alignments.
+#### 3.3 Complex
+Reads with overlapping alignments, or 3 or more alignments, are assigned to the complex category.
+They can’t be assigned to a single structural category and the mapping pattern might indicate 
+genomic rearrangements or concatemers.
+
+#### 3.4 Transgene unclassified
+Reads that map to the transgene plasmid but are not covered by any of the other categories.
+Reads of this category are typically infrequently seen.

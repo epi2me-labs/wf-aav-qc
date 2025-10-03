@@ -1,0 +1,279 @@
+# This file provides minimal examples of the two AAV structure categories and is used
+# for testing purposes.
+#
+# 1. The aln_types that are initially assigned to each alignment
+# 2. The read assignments (assigned_genome_subtypes), which are defined by the
+#    constituent aln_types of each read.
+
+itr1_start: 11
+itr1_end: 156
+itr2_start: 2324
+itr2_end: 2454
+itr_fl_threshold: 100
+
+# Alignment Types (These examples include all the AlnTypes that can be expected)
+# aln_type: the description of the alignment type as defined in the ENUM
+#   structure_definitions.AlnType.
+# examples: list of alignment examples that map to this type.
+#   Fields:
+#     - start - alignment start position
+#     - end - alignment end position
+#     - strand - alignment strand (1 or -1)
+
+aln_types:
+  - aln_type: "Almost complete"
+    examples:
+      - { start: 15, end: 2449, strand: 1}
+      - { start: 14, end: 2448, strand: -1}
+
+  - aln_type: "Partial 5` ITR and full 3` ITR"
+    examples:
+      - { start: 112, end: 2454, strand: 1}
+      - { start: 120, end: 2446, strand: -1}
+
+  - aln_type: "Partial 5` ITR and partial 3` ITR"
+    examples:
+      - { start: 112, end: 2325, strand: 1}
+      - { start: 122, end: 2354, strand: -1}
+
+  - aln_type: "Full 5` ITR and partial 3` ITR"
+    examples:
+      - { start: 11, end: 2324, strand: 1}
+      - { start: 20, end: 2354, strand: -1}
+
+  - aln_type: "Partial - no ITRs"
+    examples:
+      - { start: 157, end: 2324, strand: 1}
+
+  - aln_type: "Full 5` ITR and partial mid section"
+    examples:
+      - { start: 11,  end: 1500, strand: 1}
+      - { start: 20,  end: 2323, strand: -1}
+
+  - aln_type: "Partial mid section and full 3` ITR"
+    examples:
+      - { start: 157,  end: 2445, strand: 1}
+      - { start: 2324, end: 2453, strand: -1}
+
+  - aln_type: "Partial 5` ITR and partial mid section"
+    examples:
+      - { start: 150, end: 1500, strand: 1}
+      - { start: 155, end: 2323, strand: -1}
+
+  - aln_type: "Partial mid section and partial 3` ITR"
+    examples:
+      - { start: 1500, end: 2330, strand: 1}
+      - { start: 300,  end: 2340, strand: -1}
+
+  - aln_type: "5` ITR"
+    examples:
+      - { start: 11,  end: 156, strand: 1}
+      - { start: 50,  end: 100, strand: -1}
+
+  - aln_type: "3` ITR"
+    examples:
+      - { start: 2325, end: 2454, strand: 1}
+      - { start: 2350, end: 2450, strand: -1}
+
+  # Backbone is considered to be < 20 nt of the ITR1 start or > 20 nt of the ITR2 end
+  # Therefore negative values indicate start positions before the ITR1 start.
+  - aln_type: "Vector backbone - 5` end"
+    examples:
+      - { start: -10, end: 100, strand: 1}
+      - { start: -10, end: 200, strand: -1}
+
+  - aln_type: "Vector backbone - 3` end"
+    examples:
+      - { start: 2454, end: 2600, strand: 1}
+      - { start: 2000, end: 2475, strand: -1}
+
+  # Backbone on both sides of the ITRs
+  - aln_type: "Backbone"
+    examples:
+      - { start: -10, end: 10,   strand: 1}
+      - { start: 2455, end: 2600, strand: -1}
+
+  # Extends on both sides into backbone
+  - aln_type: "Extended ITR-ITR region"
+    examples:
+      - { start: -20, end: 24700, strand: 1}
+      - { start: -30, end: 2600,  strand: -1}
+
+
+# Assigned_genome_subtypes test data.
+# Each entry contains the genome_subtype, the coarse-grained genome_type and a list of 
+# examples.
+genome_types:
+  - genome_subtype: "Full ssAAV"
+    genome_type: "Full ssAAV"
+    examples:
+      - - {read_id: full ssaav_1,  start: 15, end: 2449, strand: 1,  aln_type: "Almost complete"}
+
+  - genome_subtype: "GDM"
+    genome_type: "Partial ssAAV"  # GDM is 2 alignments on the same strand with a gap in between
+    examples:
+      - - {read_id: gdm_1,  start: 15,   end: 100,  strand: 1,  aln_type: "Partial - no ITRs"}
+        - {read_id: gdm_1,  start: 1100, end: 2400, strand: 1,  aln_type: "Partial - no ITRs"}
+      - - {read_id: gdm_2,  start: 15,   end: 1000, strand: 1,  aln_type: "Full 5` ITR and partial mid section"}
+        - {read_id: gdm_2,  start: 2300, end: 2448, strand: 1,  aln_type: "Partial mid section and partial 3` ITR"}
+
+  - genome_subtype: "3` ICG"
+    genome_type: "Partial ssAAV"
+    examples:
+      - - {read_id: icg3_1,  start: 1, end: 100, strand: 1,  aln_type: "Partial 5` ITR and full 3` ITR"}
+      - - {read_id: icg3_2,  start: 1, end: 100, strand: 1,  aln_type: "Partial mid section and full 3` ITR"}
+
+  - genome_subtype: "5` ICG"
+    genome_type: "Partial ssAAV"
+    examples:
+      - - {read_id: icg5_1,  start: 1, end: 100, strand: 1,  aln_type: "Full 5` ITR and partial 3` ITR"}
+      - - {read_id: icg5_2,  start: 1, end: 100, strand: 1,  aln_type: "Full 5` ITR and partial mid section"}
+
+  - genome_subtype: "Partial ICG - incomplete ITRs"
+    genome_type: "Partial ssAAV"
+    examples:
+      - - {read_id: par_icg_1,  start: 1, end: 100, strand: 1,  aln_type: "Partial 5` ITR and partial mid section"}
+      - - {read_id: par_icg_2,  start: 1, end: 100, strand: 1,  aln_type: "Partial mid section and partial 3` ITR"}
+
+  - genome_subtype: "Partial ICG - no ITRs"
+    genome_type: "Partial ssAAV"
+    examples:
+      - - {read_id: par_icg_3,  start: 1, end: 100, strand: 1,  aln_type: "Partial - no ITRs"}
+
+  - genome_subtype: "Full scAAV"
+    genome_type: "Full scAAV"
+    examples:
+      - - {read_id: full_scaav_1,  start: 15,  end: 2449,  strand: 1,   aln_type: "Almost complete"}
+        - {read_id: full_scaav_1,  start: 2340, end: 24450, strand: -1,  aln_type: "Almost complete"}   # Fix locs (kept as-is)
+      - - {read_id: full_scaav_2,  start: 15,  end: 2449,  strand: 1,   aln_type: "Almost complete"}
+        - {read_id: full_scaav_2,  start: 2340, end: 24450, strand: -1,  aln_type: "Partial 5` ITR and full 3` ITR"}
+
+  - genome_subtype: "SBG (unresolved)"
+    genome_type: "Partial scAAV"
+    examples:
+      - - {read_id: sbg5_unres_1,  start: 15,   end: 2449,  strand: 1,   aln_type: "Partial 5` ITR and partial 3` ITR"}
+        - {read_id: sbg5_unres_1,  start: 2340, end: 24450, strand: -1,  aln_type: "Partial - no ITRs"}
+      - - {read_id: sbg5_unres_2,  start: 15,   end: 2449,  strand: 1,   aln_type: "Partial - no ITRs"}
+        - {read_id: sbg5_unres_2,  start: 2340, end: 24450, strand: -1,  aln_type: "Partial - no ITRs"}
+      - - {read_id: sbg5_unres_3,  start: 0,    end: 0,     strand: 1,   aln_type: "Partial - no ITRs"}
+        - {read_id: sbg5_unres_3,  start: 0,    end: 0,     strand: -1,  aln_type: "Partial - no ITRs"}
+
+  - genome_subtype: "ITR1 concatemer"
+    genome_type: "ITR region only"
+    examples:
+      - - {read_id: itr1_cat_1,  start: 15,   end: 2449,  strand: 1,   aln_type: "5` ITR"}
+        - {read_id: itr1_cat_1,  start: 2340, end: 24450, strand: -1,  aln_type: "5` ITR"}
+
+  - genome_subtype: "ITR2 concatemer"
+    genome_type: "ITR region only"
+    examples:
+      - - {read_id: itr2_cat_1,  start: 15,   end: 2449,  strand: 1,   aln_type: "3` ITR"}
+        - {read_id: itr2_cat_1,  start: 2340, end: 24450, strand: -1,  aln_type: "3` ITR"}
+
+  - genome_subtype: "ITR1-ITR2 concatemer"
+    genome_type: "ITR region only"
+    examples:
+      - - {read_id: itr1_2_cat_1,  start: 15,   end: 2449,  strand: 1,   aln_type: "5` ITR"}
+        - {read_id: itr1_2_cat_1,  start: 2340, end: 24450, strand: -1,  aln_type: "3` ITR"}
+
+  - genome_subtype: "Partial ICG - part of both ITRs"
+    genome_type: "Partial ssAAV"
+    examples:
+      - - {read_id: par_icg_both_itrs,  start: 15, end: 2449, strand: 1,  aln_type: "Partial 5` ITR and partial 3` ITR"}
+
+  - genome_subtype: "Backbone contamination"
+    genome_type: "Backbone contamination"  # This category can have 1 or two alignments
+    examples:
+      # Single alignment per read
+      - - {read_id: bb_1,  start: -10, end: 2449, strand: 1,  aln_type: "Vector backbone - 5` end"}
+      - - {read_id: bb_2,  start: 15,  end: 2475, strand: 1,  aln_type: "Vector backbone - 3` end"}
+      # Two alignments per read
+      - - {read_id: bb_3,  start: -10, end: 2449,  strand: 1,   aln_type: "Vector backbone - 5` end"}
+        - {read_id: bb_3,  start: 15,  end: 24600, strand: -1,  aln_type: "Vector backbone - 3` end"}
+
+  - genome_subtype: "Complex"
+    genome_type: "Complex"
+    examples:
+    # 3 or more alignments
+    - - {read_id: complex1,  start: 15, end: 350, strand: 1,   aln_type: "Full 5` ITR and partial mid section"}
+      - {read_id: complex1,  start: 400,  end: 500, strand: -1,  aln_type: "Partial - no ITRs"}
+      - {read_id: complex1,  start: 600,  end: 700, strand: -1,  aln_type: "Partial - no ITRs"}
+    # Overlapping primary and supplementary alignments
+    - - {read_id: complex2,  start: 500, end: 700 , strand: 1,  aln_type: "Partial - no ITRs"}
+      - {read_id: complex2,  start: 600, end: 900, strand: 1,  aln_type: "Partial - no ITRs"}
+
+  - genome_subtype: 'Transgene unclassified'
+    genome_type: 'Transgene unclassified'
+  # Aligns to transgene plasmid but does not match any of the known AAV structures
+    examples:
+     - - {read_id: 'unknown1',  start: 11, end: 164, strand: -1,  aln_type: 'Full 5` ITR and partial mid section'}
+       - {read_id: 'unknown1',  start: 1912, end: 2071, strand: -1,  aln_type: 'Partial - no ITRs'}
+
+  # The examples below here are tested for symmetrical alignments. Therefore, the start and end positions are meaningful
+  - genome_subtype: "SBG 5` symmetric"
+    genome_type: "Partial scAAV"
+    examples:
+      - - {read_id: sbg5_sym_1,  start: 15, end: 1500, strand: 1,   aln_type: "Full 5` ITR and partial mid section"}
+        - {read_id: sbg5_sym_1,  start: 15, end: 1505, strand: -1,  aln_type: "Full 5` ITR and partial mid section"}
+
+  - genome_subtype: "SBG 3` asymmetric"
+    genome_type: "Partial scAAV"
+    examples:
+      - - {read_id: sbg_1,  start: 15,   end: 2449,  strand: 1,   aln_type: "Almost complete"}
+        - {read_id: sbg_1,  start: 2340, end: 24450, strand: -1,  aln_type: "Partial mid section and full 3` ITR"}
+
+  - genome_subtype: "SBG 3` incomplete ITR asymmetric"
+    genome_type: "Partial scAAV"
+    examples:
+      - - {read_id: sbg3_incom_asym_1,  start: 15,  end: 2449,  strand: 1,   aln_type: "Almost complete"}
+        - {read_id: sbg3_incom_asym_1,  start: 2340, end: 24450, strand: -1,  aln_type: "Partial mid section and partial 3` ITR"}
+      - - {read_id: sbg3_incom_asym_2,  start: 15,  end: 2449,  strand: 1,   aln_type: "Partial mid section and full 3` ITR"}
+        - {read_id: sbg3_incom_asym_2,  start: 30,  end: 24450, strand: -1,  aln_type: "Partial mid section and partial 3` ITR"}
+      - - {read_id: sbg3_incom_asym_3,  start: 150, end: 1500,  strand: 1,   aln_type: "Partial mid section and partial 3` ITR"}
+        - {read_id: sbg3_incom_asym_3,  start: 135, end: 1499,  strand: -1,  aln_type: "Partial mid section and partial 3` ITR"}
+
+  - genome_subtype: "SBG 3` incomplete ITR symmetric"
+    genome_type: "Partial scAAV"
+    examples:
+      - - {read_id: sbg3_incom_sym_1,  start: 15,  end: 2449,  strand: 1,   aln_type: "Partial mid section and full 3` ITR"}
+        - {read_id: sbg3_incom_sym_1,  start: 17,  end: 24450, strand: -1,  aln_type: "Partial mid section and partial 3` ITR"}
+      - - {read_id: sbg3_incom_sym_2,  start: 150, end: 1500,  strand: 1,   aln_type: "Partial mid section and partial 3` ITR"}
+        - {read_id: sbg3_incom_sym_2,  start: 149, end: 1499,  strand: -1,  aln_type: "Partial mid section and partial 3` ITR"}
+
+  - genome_subtype: "SBG 5` asymmetric"
+    genome_type: "Partial scAAV"
+    examples:
+      - - {read_id: sbg5_asym_1,  start: 0,  end: 0,    strand: 1,   aln_type: "Full 5` ITR and partial mid section"}
+        - {read_id: sbg5_asym_1,  start: 0,  end: 0,    strand: -1,  aln_type: "Full 5` ITR and partial 3` ITR"}
+      - - {read_id: sbg5_asym_2,  start: 11, end: 1500, strand: 1,   aln_type: "Full 5` ITR and partial mid section"}
+        - {read_id: sbg5_asym_2,  start: 11, end: 1502, strand: -1,  aln_type: "Full 5` ITR and partial 3` ITR"}
+
+  - genome_subtype: "SBG 5` incomplete ITR asymmetric"
+    genome_type: "Partial scAAV"
+    examples:
+      - - {read_id: sbg5_incom_itr_asym_1,  start: 15,  end: 2449,  strand: 1,   aln_type: "Partial 5` ITR and full 3` ITR"}
+        - {read_id: sbg5_incom_itr_asym_1,  start: 2340, end: 24450, strand: -1,  aln_type: "Full 5` ITR and partial mid section"}
+      - - {read_id: sbg5_incom_itr_asym_2,  start: 15,  end: 1500,  strand: 1,   aln_type: "Full 5` ITR and partial mid section"}
+        - {read_id: sbg5_incom_itr_asym_2,  start: 15,  end: 1600,  strand: -1,  aln_type: "Partial 5` ITR and partial mid section"}
+      - - {read_id: sbg5_incom_itr_asym_3,  start: 15,  end: 1500,  strand: 1,   aln_type: "Partial 5` ITR and partial mid section"}
+        - {read_id: sbg5_incom_itr_asym_3,  start: 15,  end: 1600,  strand: -1,  aln_type: "Partial 5` ITR and partial mid section"}
+
+  - genome_subtype: "SBG 5` incomplete ITR symmetric"
+    genome_type: "Partial scAAV"
+    examples:
+      - - {read_id: sbg5_incom_sym_1,  start: 120, end: 1600, strand: 1,   aln_type: "Partial 5` ITR and partial mid section"}
+        - {read_id: sbg5_incom_sym_1,  start: 121, end: 1601, strand: -1,  aln_type: "Partial 5` ITR and partial mid section"}
+      - - {read_id: sbg5_incom_sym_2,  start: 150, end: 1500, strand: 1,   aln_type: "Partial 5` ITR and partial mid section"}
+        - {read_id: sbg5_incom_sym_2,  start: 20,  end: 1499, strand: -1,  aln_type: "Full 5` ITR and partial mid section"}
+
+  - genome_subtype: "SBG 3` symmetric"
+    genome_type: "Partial scAAV"
+    examples:
+      - - {read_id: sbg3_sym_1,  start: 1000, end: 2400, strand: 1,   aln_type: "Partial mid section and full 3` ITR"}
+        - {read_id: sbg3_sym_1,  start: 1001, end: 2405, strand: -1,  aln_type: "Partial mid section and full 3` ITR"}
+
+  - genome_subtype: "SBG 3` asymmetric"
+    genome_type: "Partial scAAV"
+    examples:
+      - - {read_id: sbg3_asym_1,  start: 1000, end: 2400, strand: 1,   aln_type: "Partial mid section and full 3` ITR"}
+        - {read_id: sbg3_asym_1,  start: 900,  end: 2412, strand: -1,  aln_type: "Partial mid section and full 3` ITR"}

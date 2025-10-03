@@ -1,4 +1,16 @@
-"""Categorise reads by gene type."""
+"""Categorise reads by gene type.
+
+The script classifies per-read AAV genome structures from alignment evidence on the
+transgene plasmid. Conceptually it runs in three layers:
+
+  1.	Per-alignment labeling → assign an AlnType to each alignment relative to
+  ITRs and backbone.
+  2.	Per-read rule evaluation → apply ordered rules (definitions) that combine
+  alignment patterns (and symmetry/overlap constraints) into read subtypes;
+  then map those subtypes to coarse genome types for reporting.
+  3.	Outputs & summaries → produce a per-read table (subtype + coarse type) and
+  an aggregate count/percent breakdown.
+"""
 
 from pathlib import Path
 
@@ -168,7 +180,7 @@ def assign_genome_types_to_alignments(
         .then(_l(AlnType.bb))
 
         # Unknown
-        .otherwise(_l(AlnType.unknown))
+        .otherwise(_l(AlnType.transgene_unclassified))
 
         .alias('aln_type')
     )
@@ -184,7 +196,7 @@ def annotate_reads(sample_id, aln_df, type_definitions, symmetry_threshold):
     `Assigned_geome_subtype`, a more granular category for writing to TSV
 
     :param: aln_df
-        polars df containing `seqkit bam output` of reads mapping to transgene plasmid
+        polars DF containing `seqkit bam output` of reads mapping to transgene plasmid
         with added column of `aln_type`, one row per alignment.
     :param: type_definitions: List[ReadTypeDefinition]
     :param: symmetry_threshold: min distance between start or end positions on opposite
@@ -264,15 +276,13 @@ def annotate_reads(sample_id, aln_df, type_definitions, symmetry_threshold):
         aln_type_expressions = []
         for condition in subtype_def.aln_type_combinations:
 
-            if condition == 'no_overlap':
-                aln_type_expressions.append(
-                    (pl.col('Pos').max() - pl.col('EndPos').min() > 0))
-
             if condition == 'overlap':
+                # The dataframes are sorted by Pos. Check if any alignemnt end
+                # is greater than an adjacent alignment start (overlap)
                 aln_type_expressions.append(
-                    (pl.col('Pos').max() - pl.col('EndPos').min() <= 0))
+                    ((pl.col("EndPos") > pl.col("Pos").shift(-1)).any()))
 
-            elif len(condition) == 1:
+            if len(condition) == 1:
                 # Only one aln_type defines this ReadType. Check if it is present.
                 exp = pl.any_horizontal(
                     pl.lit(condition[0].value).is_in(pl.col("aln_type")))
@@ -324,7 +334,8 @@ def annotate_reads(sample_id, aln_df, type_definitions, symmetry_threshold):
     read_subtype_dfs.append(complex_)
     all_reads_assigned_df = pl.concat(read_subtype_dfs, how="diagonal")
 
-    # Assign 'Unknown'
+    # Assign 'transgene_unclassified' Check if any of the original reads are missing
+    # from the assigned DF and set to 'transgene_unclassified' if so.
     unknown_df = (
         (
           aln_df.filter(
@@ -332,33 +343,36 @@ def annotate_reads(sample_id, aln_df, type_definitions, symmetry_threshold):
               ['Read']]
         ).unique()
         .with_columns(
-            pl.lit(ReadType.unknown)
+            pl.lit(ReadType.transgene_unclassified)
             .alias('Assigned_genome_subtype')
          )
         .select(['Read', 'Assigned_genome_subtype'])
     )
     merged_df = pl.concat([all_reads_assigned_df, unknown_df], how='diagonal')
 
-    # Backbone duplicate read assignment fix.
-    # It's possible for a read to have backbone and other reads assignments.
-    # For example, complex (2 strands with overlap) can also contain vector backbone.
-    # If any read is assigned backbone, remove any other assignments to other
-    # categories.
-    dups = merged_df.filter(pl.col("Read").is_duplicated())
+    # Reads may be assigned to both 'backbone' and 'complex' categories if, for example,
+    # they have three or more alignments or overlapping alignments
+    # (classified as 'complex'), but also match the criteria for 'backbone'.
+    # In these cases, the 'complex' assignment takes priority.
+    # Similarly, GDM-assigned reads with two 'partial - no ITR' alignments
+    # can also be considered 'complex' if they overlap, so 'complex' should take
+    # precedence.
 
-    # Get read IDs that have backbone assignment
-    bb_ids = dups.filter(
-        pl.col('Assigned_genome_subtype').is_in(pl.lit(ReadType.bb_contam)))['Read']
+    priority = (
+        pl.when(pl.col("Assigned_genome_subtype") == pl.lit(ReadType.complex_))
+        .then(0)
+        .when(pl.col("Assigned_genome_subtype") == pl.lit(ReadType.bb_contam))
+        .then(1)
+        .otherwise(2)
+    )
 
-    # Drop reads that also have the same read id but not backbone
-    dup_df = dups.filter(
-        (pl.col('Read').is_in(bb_ids))
-        & (pl.col('Assigned_genome_subtype') != pl.lit(ReadType.bb_contam)))
-
-    final_df = merged_df.join(
-        other=dup_df[['Read', 'Assigned_genome_subtype']],
-        on=['Read', 'Assigned_genome_subtype'],
-        how="anti"
+    final_df = (
+        merged_df
+        .with_columns(priority.alias("prior"))
+        .sort(["Read", "prior"])
+        .group_by("Read")
+        .agg(pl.all().first())  # keep the highest-priority assignment
+        .select(["Read", "Assigned_genome_subtype"])
     )
 
     # Assign subtypes to higher level Assigned_genome_type
@@ -395,7 +409,9 @@ def annotate_reads(sample_id, aln_df, type_definitions, symmetry_threshold):
         ]))
         .then(_l(ReadType.par_sc))
 
-        .otherwise(_l(ReadType.unknown))
+        .when(pl.col('Assigned_genome_subtype') == ReadType.transgene_unclassified)
+        .then(_l(ReadType.transgene_unclassified))
+
         .alias('Assigned_genome_type')
     )
 
@@ -429,7 +445,7 @@ def tag_bam(in_bam, out_bam, gtypes, threads):
                 if aln.query_name in gtypes['Read']:
                     gtype = gtypes.filter(pl.col('Read') == aln.query_name)['tag'][0]
                 else:
-                    gtype = 'unclassified'
+                    gtype = 'Non_transgene'
                 aln.set_tag('AV', gtype, value_type="Z")
                 bam_out.write(aln)
 
@@ -442,10 +458,7 @@ def main(args):
         'Read': pl.Utf8,
         'Pos': pl.UInt32,
         'EndPos': pl.UInt32,
-        'ReadLen': pl.UInt32,
         'Strand': pl.UInt8,
-        'IsSec': pl.UInt8,
-        'IsSup': pl.UInt8
     }
 
     df_bam = (pl.read_csv(
@@ -455,9 +468,7 @@ def main(args):
         dtypes=list(schema.values())
         )
         .with_columns([
-            pl.col('Strand').cast(pl.Boolean),
-            pl.col('IsSec').cast(pl.Boolean),
-            pl.col('IsSup').cast(pl.Boolean)
+            pl.col('Strand').cast(pl.Boolean)
         ])
     )
 

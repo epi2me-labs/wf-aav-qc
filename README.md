@@ -229,8 +229,10 @@ Output files may be aggregated including information for all samples or provided
 | complex alignment index | {{ alias }}/tagged_bams/complex.bam.bai | The resulting tagged BAM index file from mapping reads to the combined reference. This indexes the file containing alignments with the genotype assignment: complex | per-sample |
 | partial_scaav alignment | {{ alias }}/tagged_bams/partial_scaav.bam | The resulting tagged BAM file from mapping reads to the combined reference. This file contains alignmnets with the genotype assignment: partial_scaav | per-sample |
 | partial_scaav alignment index | {{ alias }}/tagged_bams/partial_scaav.bam.bai | The resulting tagged BAM index file from mapping reads to the combined reference. This indexes the file containing alignments with the genotype assignment: partial_scaav | per-sample |
-| unknown alignment | {{ alias }}/tagged_bams/unknown.bam | The resulting tagged BAM file from mapping reads to the combined reference. This file contains alignmnets with the genotype assignment: unknown | per-sample |
-| unknown alignment index | {{ alias }}/tagged_bams/unknown.bam.bai | The resulting tagged BAM index file from mapping reads to the combined reference. This indexes the file containing alignments with the genotype assignment: unknown | per-sample |
+| unclassified alignment | {{ alias }}/tagged_bams/transgene_unclassified.bam | The resulting tagged BAM file from mapping reads to the combined reference. This file contains alignments with the genotype assignment: transgene_unclassified | per-sample |
+| unclassified alignment index | {{ alias }}/tagged_bams/transgene_unclassified.bam.bai | The resulting tagged BAM index file from mapping reads to the combined reference. This indexes the file containing alignments with the genotype assignment: transgene_unclassified | per-sample |
+| non_transgene alignment | {{ alias }}/tagged_bams/non_transgene.bam | The resulting tagged BAM file from mapping reads to the combined reference. This file contains alignments with the genotype assignment: non_transgene | per-sample |
+| non_transgene alignment index | {{ alias }}/tagged_bams/non_transgene.bam.bai | The resulting tagged BAM index file from mapping reads to the combined reference. This indexes the file containing alignments with the genotype assignment: non-transgene | per-sample |
 | IGV config JSON file | igv.json | JSON file with IGV config options to be used by the EPI2ME Desktop Application. | aggregated |
 
 
@@ -325,7 +327,7 @@ There are two user-adjustable parameters relevant to this part of the workflow:
 
 See the [AAV structures](#aav-structure-diagrams) section for some representative diagrams of AAV gene structures and how they are classified.
 
-At this stage, the BAM alignment files are tagged with `AV:Z` which associates each alignment with an assigned genotype, in the format `AV:Z:full_ssaav`.
+At this stage, the BAM alignment files are tagged with `AV:Z` which associates each alignment with an assigned genotype, in the format `AV:Z:full_ssaav`. If the read does not map to the transgene plasmid, it will be assigned the tag `AV:Z:non_transgene`.
 
 If --gtype_bams is set to `true`, these tagged BAMs are split on this tag into separate BAM files.
 
@@ -494,8 +496,14 @@ An allowance can be made for some backbone plasmid contamination, and this can b
 </figure>
 
 
-#### 3.4 Complex
-The complex category contains reads with 3 or more alignments.
+#### 3.3 Complex
+Reads with overlapping alignments, or 3 or more alignments, are assigned to the complex category.
+They can’t be assigned to a single structural category and the mapping pattern might indicate 
+genomic rearrangements or concatemers.
+
+#### 3.4 Transgene unclassified
+Reads that map to the transgene plasmid but are not covered by any of the other categories.
+Reads of this category are typically infrequently seen.
 
 
 

@@ -85,6 +85,6 @@ There are two user-adjustable parameters relevant to this part of the workflow:
 
 See the [AAV structures](#aav-structure-diagrams) section for some representative diagrams of AAV gene structures and how they are classified.
 
-At this stage, the BAM alignment files are tagged with `AV:Z` which associates each alignment with an assigned genotype, in the format `AV:Z:full_ssaav`.
+At this stage, the BAM alignment files are tagged with `AV:Z` which associates each alignment with an assigned genotype, in the format `AV:Z:full_ssaav`. If the read does not map to the transgene plasmid, it will be assigned the tag `AV:Z:non_transgene`.
 
 If --gtype_bams is set to `true`, these tagged BAMs are split on this tag into separate BAM files.

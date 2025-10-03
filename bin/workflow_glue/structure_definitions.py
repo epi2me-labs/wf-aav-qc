@@ -1,4 +1,14 @@
-"""This module contains definition for AAV genome types."""
+"""This module contains definitions for AAV genome types.
+
+This module declares the rules governing how AAV genome types are defined based on
+the alignments that make up each read. The definitions are used in aav_structures.py
+to assign genome types to reads.
+The main components are:
+
+  -	Enums for AlnType and ReadType.
+  -	AlnType: labels to assign to individual alignments on the transgene plasmid
+  -	ReadType: final, per-read categories the workflow reports
+"""
 
 from enum import Enum
 
@@ -41,7 +51,8 @@ class AlnType(str, Enum):
     bb = 'Backbone'
 
     ext_itr = 'Extended ITR-ITR region'
-    unknown = 'Unknown'
+    transgene_unclassified = 'Transgene unclassified'
+    non_transgene = 'Non transgene'
 
 
 class ReadType(str, Enum):
@@ -50,15 +61,16 @@ class ReadType(str, Enum):
     Read types are defined by the identity of the constituent alignment types.
     """
 
-    full_ss = 'Full_ssAAV'
-    full_sc = 'Full_scAAV'
+    full_ss = 'Full ssAAV'
+    full_sc = 'Full scAAV'
     par3_ss = '3` partial ssAAV'
     par5_ss = '5` partial ssAAV'
     bb_int = 'Backbone integration'
     vbb_int = 'Vector-backbone integration'
     par_sc = 'Partial scAAV'
     par_ss = 'Partial ssAAV'
-    unknown = 'Unknown'
+    transgene_unclassified = 'Transgene unclassified'
+    non_transgene = 'Non transgene'
 
     par_icg = "Partial ICG - part of both ITRs"
     icg5 = '5` ICG'
@@ -354,7 +366,7 @@ def get_subtype_definitions():
         ]),
         # If we have primary and supplementary overlapping, no sure what's going on
         # so we'll class as complex
-        # Also extra definition in main script for when number of alignments > 2
+        # Also extra definition in aav_structures.py for when number of alignments > 2
         ReadTypeDefinition(ReadType.complex_, 2, 1, 0, [
             'overlap',
         ]),

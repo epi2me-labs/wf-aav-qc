@@ -192,18 +192,34 @@
       "optional": true,
       "type": "per-sample"
     },
-    "bam_unknown": {
-      "filepath": "{{ alias }}/tagged_bams/unknown.bam",
-      "title": "unknown alignment",
-      "description": "The resulting tagged BAM file from mapping reads to the combined reference. This file contains alignmnets with the genotype assignment: unknown",
+    "bam_transgene_unclassified": {
+      "filepath": "{{ alias }}/tagged_bams/transgene_unclassified.bam",
+      "title": "unclassified alignment",
+      "description": "The resulting tagged BAM file from mapping reads to the combined reference. This file contains alignments with the genotype assignment: transgene_unclassified",
       "mime-type": "application/gzip",
       "optional": true,
       "type": "per-sample"
     },
-    "bam_index_unknown": {
-      "filepath": "{{ alias }}/tagged_bams/unknown.bam.bai",
-      "title": "unknown alignment index",
-      "description": "The resulting tagged BAM index file from mapping reads to the combined reference. This indexes the file containing alignments with the genotype assignment: unknown",
+    "bam_index_transgene_unclassified": {
+      "filepath": "{{ alias }}/tagged_bams/transgene_unclassified.bam.bai",
+      "title": "unclassified alignment index",
+      "description": "The resulting tagged BAM index file from mapping reads to the combined reference. This indexes the file containing alignments with the genotype assignment: transgene_unclassified",
+      "mime-type": "application/gzip",
+      "optional": true,
+      "type": "per-sample"
+    },
+    "bam_non_transgene": {
+      "filepath": "{{ alias }}/tagged_bams/non_transgene.bam",
+      "title": "non_transgene alignment",
+      "description": "The resulting tagged BAM file from mapping reads to the combined reference. This file contains alignments with the genotype assignment: non_transgene",
+      "mime-type": "application/gzip",
+      "optional": true,
+      "type": "per-sample"
+    },
+    "bam_index_non_transgene": {
+      "filepath": "{{ alias }}/tagged_bams/non_transgene.bam.bai",
+      "title": "non_transgene alignment index",
+      "description": "The resulting tagged BAM index file from mapping reads to the combined reference. This indexes the file containing alignments with the genotype assignment: non-transgene",
       "mime-type": "application/gzip",
       "optional": true,
       "type": "per-sample"

@@ -65,7 +65,7 @@
                 "itr1_end": {
                     "title": "ITR1 end",
                     "type": "integer",
-                    "description": "The end position of ITR2.",
+                    "description": "The end position of ITR1.",
                     "help_text": ""
                 },
                 "itr2_start": {

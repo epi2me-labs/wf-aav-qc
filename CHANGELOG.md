@@ -4,10 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
-## [Unreleased]
+## [v1.3.0]
+This update improves performance and broadens platform compatibility, with minor workflow naming adjustments. This does not affect workflow outputs.
 ### Changed
 - The workflow Docker image has been updated to use standard Polars rather than the lts-cpu variant, to improve performance.
 - The workflow is now compatible with ARM.
+- Removed workflow suffix from workflow title.
  
 ## [v1.2.1]
 ### Fixed

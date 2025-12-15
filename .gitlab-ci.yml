@@ -5,7 +5,7 @@ include:
 
 variables:
     # We'll use the single-file case for these runs
-    NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/wf-aav-test-data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-aav-qc/test_data && tar -xzvf ${CI_PROJECT_NAME}/data/wf-aav-test-data.tar.gz -C ${CI_PROJECT_NAME}/data/"
+    NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/wf-aav-test-data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-aav-qc/wf-aav-qc-demo.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/wf-aav-test-data.tar.gz -C ${CI_PROJECT_NAME}/data/"
     NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB --fastq ${CI_PROJECT_NAME}/data/test_data/fastq --ref_host ${CI_PROJECT_NAME}/data/test_data/cell_line.fasta.gz --ref_helper ${CI_PROJECT_NAME}/data/test_data/helper.fasta --ref_rep_cap ${CI_PROJECT_NAME}/data/test_data/repcap.fasta  --itr1_start 11 --itr1_end 156 --itr2_start 2156 --itr2_end 2286 --ref_transgene_plasmid ${CI_PROJECT_NAME}/data/test_data/transgene.fasta --threads 4 "
     CI_FLAVOUR: "new" # set to "classic" for old-style CI
 

@@ -458,7 +458,7 @@ def main(args):
         'Read': pl.Utf8,
         'Pos': pl.UInt32,
         'EndPos': pl.UInt32,
-        'Strand': pl.UInt8,
+        'Strand': pl.Int8,
     }
 
     df_bam = (pl.read_csv(
@@ -467,9 +467,6 @@ def main(args):
         columns=list(schema.keys()),
         dtypes=list(schema.values())
         )
-        .with_columns([
-            pl.col('Strand').cast(pl.Boolean)
-        ])
     )
 
     # Get the ITR locations

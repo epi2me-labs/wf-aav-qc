@@ -6,17 +6,21 @@ relation to the ITR sequences
 2: Assigning a ReadType by looking at the individual AlnTypes of the read
 """
 from collections import defaultdict
+import contextlib
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 
 import pandas as pd
 import polars as pl
 from polars.testing import assert_frame_equal
+import pysam
 import pytest
 from workflow_glue.aav_structures import (
     annotate_reads,
     assign_genome_types_to_alignments,
     get_subtype_definitions,
+    main
 )
 import yaml
 
@@ -232,3 +236,88 @@ def test_annotate_reads(genome_type_df):
     ).sort('Assigned_genome_type')
 
     assert_equal_view_diffs(expected_summary_df, actual_summary)
+
+
+def test_main(tmp_path):
+    """Test the main function. AAV structure determination and BAM-tagging."""
+    from collections import namedtuple
+
+    # Setup test parameters
+    itr1_start, itr1_end, itr2_start, itr2_end = 11, 156, 2324, 2454
+    transgene_name = "test_transgene"
+    sample_id = "test_sample"
+
+    # Create test files
+    bam_in = tmp_path / "input.bam"
+    bam_info = tmp_path / "bam_info.tsv"
+    bam_out = tmp_path / "output.bam"
+    per_read_out = tmp_path / "per_read.tsv"
+    summary_out = tmp_path / "summary.tsv"
+
+    # Write minimal BAM
+    with contextlib.ExitStack() as stack:
+
+        # Define some reads to test that main works end to end. Full testing of all
+        # types happens elsewhere
+        TestRead = namedtuple(
+            'TestRead', ['start', 'end', 'flag', 'expected_tag'])
+        data = {
+            'read_1': TestRead(itr1_start, itr2_end, 0, 'full_ssaav'),
+            'read_2': TestRead(itr1_start + 900, itr1_end - 10, 16, 'partial_ssaav')
+        }
+
+        bam_info_fh = stack.enter_context(open(bam_info, "w"))
+        bam_info_fh.write("Ref\tRead\tPos\tEndPos\tStrand\n")
+        header = {"SQ": [{"SN": transgene_name, "LN": 5000}]}
+        bam_fh = stack.enter_context(
+            pysam.AlignmentFile(str(bam_in), "wb", header=header))
+
+        for qname, read in data.items():
+            seg = pysam.AlignedSegment()
+            seg.query_name = qname
+            seg.reference_id = 0
+            seg.reference_start = read.start
+            length = read.end - read.start
+            seg.cigarstring = f"{length}M"
+            seg.flag = read.flag
+            seg.mapping_quality = 60
+            seg.query_sequence = "A" * length
+            seg.query_qualities = pysam.qualitystring_to_array("I" * length)
+            bam_fh.write(seg)
+
+            bam_info_fh.write((
+                f"{transgene_name}\t{qname}\t{read.start}\t{read.end}"
+                f"\t{-1 if read.flag == 16 else 1}\n"
+            ))
+
+    pysam.index(str(bam_in))
+
+    # Create args
+    args = SimpleNamespace(
+        bam_info=str(bam_info),
+        bam_in=str(bam_in),
+        bam_out=str(bam_out),
+        itr_locations=[itr1_start, itr1_end, itr2_start, itr2_end],
+        sample_id=sample_id,
+        itr_fl_threshold=100,
+        itr_backbone_threshold=20,
+        transgene_plasmid_name=transgene_name,
+        output_plot_data=str(summary_out),
+        symmetry_threshold=10,
+        output_per_read=str(per_read_out),
+        threads=1,
+    )
+
+    # Run main
+    main(args)
+
+    # Check BAM tagging
+    with pysam.AlignmentFile(str(bam_out), "rb") as bamf:
+        tagged_count = 0
+        for aln in bamf.fetch(until_eof=True):
+            tag_val = aln.get_tag('AV')
+            qname = aln.query_name
+            expected_tag_val = data[qname].expected_tag
+            assert tag_val == expected_tag_val, "Incorrect tag value"
+            tagged_count += 1
+        assert tagged_count == 2, f"Expected 2 tagged reads, got {tagged_count}"

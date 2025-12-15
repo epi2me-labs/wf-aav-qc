@@ -1,15 +1,16 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 ### Changed
-- Updated to wf-template v5.6.3 to maintain compliance with our latest wf-template standard, changing:
+- Updated to wf-template v5.7.0 to maintain compliance with our latest wf-template standard, changing:
   - Pipeline overview now appears before pipeline parameters in README.
   - ezCharts plotting library has been updated to 0.15.1, there are no user facing changes to plots.
   - Fastcat FASTQ pre-processing program has been updated to 0.24.2, it is more robust to malformed FASTQ input.
+  - CHANGELOG to be compliant with our formatting rules.
 
 ## [v1.3.0]
 This update improves performance and broadens platform compatibility, with minor workflow naming adjustments. This does not affect workflow outputs.
@@ -37,7 +38,7 @@ This update improves performance and broadens platform compatibility, with minor
 - Minor decrease to some memory directives to avoid “Process requirement exceeds available memory” errors when running in WSL.
 
 ## [v1.2.0]
-### Updated
+### Changed
 - Diagrams in the README describing AAV genome types. 
 ### Fixed
 - Rounding issues in genome structures table.
@@ -46,11 +47,11 @@ This update improves performance and broadens platform compatibility, with minor
 - Ability to load any number of non-transgene plasmid reference files in a directory with `--non_transgene_refs`.
 
 ## [v1.1.2]
-### Updated 
+### Changed
 - Updated Ezcharts to v0.11.2.
 
 ## [v1.1.1]
-## Added
+### Added
 - Publish report missing from v1.0.3.
 ### Fixed
 - Automated basecaller detection not finding a basecaller model.

@@ -386,12 +386,12 @@ process run_medaka {
     samtools view align.bam -bh "${transgene_plasmid_name}" > transgene_reads.bam
     samtools index transgene_reads.bam
 
-    medaka consensus transgene_reads.bam consensus_probs.hdf \
+    medaka inference transgene_reads.bam consensus_probs.hdf \
         --threads $task.cpus --model "${basecall_model}:variant"
 
-    medaka variant \
-        transgene_plasmid.fa \
+    medaka vcf \
         consensus_probs.hdf \
+        transgene_plasmid.fa \
         "${meta.alias}.transgene_plasmid_sorted.vcf"
 
     bgzip "${meta.alias}.transgene_plasmid_sorted.vcf"

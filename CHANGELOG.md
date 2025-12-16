@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - ezCharts plotting library has been updated to 0.15.1, there are no user facing changes to plots.
   - Fastcat FASTQ pre-processing program has been updated to 0.24.2, it is more robust to malformed FASTQ input.
   - CHANGELOG to be compliant with our formatting rules.
+- Updated to Medaka v2.2.0 to:
+  - Improve multithreading performance.
+  - Support data from more recent basecalling models. 
 ### Fixed
 - `polars.exceptions.ComputeError: could not parse '-1' as dtype 'u8'` error when reading BAM info TSV in `aav_structures` process.
 

@@ -12,6 +12,7 @@ transgene plasmid. Conceptually it runs in three layers:
   an aggregate count/percent breakdown.
 """
 
+import contextlib
 from pathlib import Path
 
 import polars as pl
@@ -20,7 +21,7 @@ import pysam
 from .structure_definitions import (  # noqa: ABS101
     ReadType, AlnType, get_subtype_definitions
 )
-from .util import wf_parser  # noqa: ABS101
+from .util import wf_parser, get_named_logger  # noqa: ABS101
 
 
 def argparser():
@@ -28,17 +29,11 @@ def argparser():
     parser = wf_parser("structures")
 
     parser.add_argument(
-        '--bam_info',
-        help="File containing the output of seqkit bam",
-        type=Path)
-    parser.add_argument(
         '--bam_in',
-        help="Path to BAM file to tag with assigned genome type",
-        type=Path)
+        help="Path to input BAM file to tag with assigned genome type")
     parser.add_argument(
         '--bam_out',
-        help="Out path for tagged BAM",
-        type=Path)
+        help="Out path for tagged BAM")
     parser.add_argument(
         '--itr_locations', help="[itr1_start, itr1_end, itr2_start, itr_2_end]",
         nargs='*', type=int)
@@ -70,10 +65,6 @@ def argparser():
         '--output_per_read',
         help="Path to output TSV for inclusion in output directory",
         type=Path)
-    parser.add_argument(
-        '--threads',
-        help="Threads to use for BAM tagging",
-        type=int)
     return parser
 
 
@@ -203,18 +194,14 @@ def annotate_reads(sample_id, aln_df, type_definitions, symmetry_threshold):
         strands when testing for symmetry.
     :return: polars.DataFrame with columns: [Read, Assigned_genome_subtype, extra_info]
     """
-    # Aggregate Alignments on Read. Apply some read summary info back to the alignment
-    # DataFrame
-    aln_df = aln_df.join(
-        other=aln_df.group_by('Read')
-        .agg(
-            (pl.col('Strand').unique().count().alias('n_strands')),
-            (pl.count('aln_type').alias('n_alignments')),
-            (pl.col('aln_type').unique().count().alias('n_aln_types'))
-        ).select(pl.col(['Read', 'n_strands', 'n_aln_types', 'n_alignments'])),
-        on='Read',
-        how='left'
-    )
+    # Annotate each alignment row with per-read summary statistics.
+    # Note that using `.over` expressions to calculate these stats is more efficient
+    # than a groupby-agg-join approach.
+    aln_df = aln_df.with_columns([
+        pl.col('Strand').n_unique().over('Read').alias('n_strands'),
+        pl.len().over('Read').alias('n_alignments'),
+        pl.col('aln_type').n_unique().over('Read').alias('n_aln_types'),
+    ])
 
     # Calculate symmetry status at the left and right positions
     # where there are two alignments on both strands
@@ -428,76 +415,171 @@ def annotate_reads(sample_id, aln_df, type_definitions, symmetry_threshold):
     return per_read_info, assigned_genome_types_summary
 
 
-def tag_bam(in_bam, out_bam, gtypes, threads):
-    """Tag the BAM with the assigned genome type."""
-    gtypes = gtypes.with_columns(
-        tag=pl.col('Assigned_genome_type')
-        .str.replace_all(' ', '_')
-        .str.to_lowercase())
+class BamChunkReader:
+    """Iterator that yields batches BAM alignments.
 
-    threads = max(threads // 2, 1)
+    Identically-named records are guaranteed to be in the same batch as long as
+    the input BAM is processed with samtools sort -n, sort-N or collate.
+    """
 
-    with pysam.AlignmentFile(
-            in_bam, 'rb', threads=threads) as bam_in:
-        with pysam.AlignmentFile(
-                out_bam, 'wb', template=bam_in, threads=threads) as bam_out:
-            for aln in bam_in.fetch():
-                if aln.query_name in gtypes['Read']:
-                    gtype = gtypes.filter(pl.col('Read') == aln.query_name)['tag'][0]
-                else:
-                    gtype = 'Non_transgene'
-                aln.set_tag('AV', gtype, value_type="Z")
-                bam_out.write(aln)
+    def __init__(
+        self,
+        bam_path,
+        batch_size=200_000,
+        threads=2
+    ):
+        """Initialize the reader."""
+        self.bam_path = bam_path
+        self.batch_size = batch_size
+        self.threads = threads
+        self._overflow_records = []
+
+        self.bam_file = pysam.AlignmentFile(self.bam_path, 'rb', threads=self.threads)
+        self._bam_iter = self.bam_file.fetch(until_eof=True)
+        self.all_processed = False
+
+    def __iter__(self):
+        """Return the iterator object itself."""
+        return self
+
+    def __next__(self):
+        """Return the next batch of BAM alignments."""
+        batch = self._load_next_complete_batch()
+        # It's possible to have an empty batch returned if all were unmapped and
+        # filtered. There may still be more to process.
+        if not batch and self.all_processed:
+            raise StopIteration
+        return batch
+
+    def _load_next_complete_batch(self):
+        this_batch = self._overflow_records
+        self._overflow_records = []
+
+        # Fill up to batch_size
+        while len(this_batch) < self.batch_size:
+            try:
+                record = next(self._bam_iter)
+                if record.is_unmapped:
+                    continue
+                this_batch.append(record)
+            except StopIteration:
+                self.all_processed = True
+                break
+
+        if not this_batch:
+            # No records mappped reads found.
+            return []
+
+        # Ensure full set of records for last read id in batch
+        batch_last_id = this_batch[-1].query_name
+        while True:
+            try:
+                peek = next(self._bam_iter)
+                if peek.is_unmapped:
+                    continue
+            except StopIteration:
+                break
+            if peek.query_name == batch_last_id:
+                this_batch.append(peek)
+            else:
+                self._overflow_records.append(peek)
+                break
+        return this_batch
 
 
 def main(args):
     """Entry point."""
-    # Load the BAM info file
+    logger = get_named_logger('aav_structures')
+    # Get the ITR locations
+    itr1_start, itr1_end, itr2_start, itr2_end = args.itr_locations
+
     schema = {
-        'Ref':  pl.Utf8,
+        'Ref': pl.Utf8,
         'Read': pl.Utf8,
         'Pos': pl.UInt32,
         'EndPos': pl.UInt32,
         'Strand': pl.Int8,
     }
 
-    df_bam = (pl.read_csv(
-        source=args.bam_info,
-        separator='\t',
-        columns=list(schema.keys()),
-        dtypes=list(schema.values())
-        )
-    )
+    reader = BamChunkReader(bam_path=args.bam_in)
 
-    # Get the ITR locations
-    itr1_start, itr1_end, itr2_start, itr2_end = args.itr_locations
+    # Accumulate summaries across batches
+    all_summaries = []
 
-    # Get reads that map to transgene plasmid
-    non_plasmid_read_ids = (
-        df_bam.filter(~pl.col('Ref').is_in([args.transgene_plasmid_name]))
-        .select(pl.col('Read')).to_series()
-    )
-    trans_df = df_bam.filter(~pl.col('Read').is_in(non_plasmid_read_ids))
+    with contextlib.ExitStack() as stack:
 
-    # Assign types to each alignment
-    df_assigned_alns = assign_genome_types_to_alignments(
-        trans_df,
-        itr1_start,
-        itr1_end,
-        itr2_start,
-        itr2_end,
-        args.itr_fl_threshold,
-        args.itr_backbone_threshold
-    )
+        bam_out = stack.enter_context(pysam.AlignmentFile(
+                args.bam_out, 'wb', template=reader.bam_file, threads=2))
+        assigned_out = stack.enter_context(open(args.output_per_read, 'a'))
 
-    # Assign final types to each read
-    df_assigned_reads, type_summary = annotate_reads(
-        args.sample_id, df_assigned_alns, get_subtype_definitions(),
-        args.symmetry_threshold)
+        first_batch = True
+        logger.info("Starting processing BAM in chunks\n")
+        for batch_n, bam_batch_iter in enumerate(reader, start=1):
+            records = [
+                [
+                    r.reference_name, r.query_name, r.reference_start,
+                    r.reference_end, r.is_reverse
+                ] for r in bam_batch_iter
+            ]
 
-    df_assigned_reads.write_csv(args.output_per_read, separator='\t')
+            batch_df = pl.from_records(records, schema)
+            logger.info(f"Loaded {len(batch_df)} alignments in batch {batch_n}\n")
+            # Get reads that map to transgene plasmid
+            non_plasmid_read_ids = (
+                batch_df.filter(~pl.col('Ref').is_in([args.transgene_plasmid_name]))
+                .select(pl.col('Read')).to_series()
+            )
+            trans_df = batch_df.filter(~pl.col('Read').is_in(non_plasmid_read_ids))
 
-    # Write the summary
-    type_summary.write_csv(args.output_plot_data, separator='\t')
+            # Assign types to each alignment
+            df_assigned_alns = assign_genome_types_to_alignments(
+                trans_df,
+                itr1_start,
+                itr1_end,
+                itr2_start,
+                itr2_end,
+                args.itr_fl_threshold,
+                args.itr_backbone_threshold
+            )
 
-    tag_bam(args.bam_in, args.bam_out, df_assigned_reads, args.threads)
+            # Assign final types to each read
+            df_assigned_reads, type_summary = annotate_reads(
+                args.sample_id, df_assigned_alns, get_subtype_definitions(),
+                args.symmetry_threshold)
+
+            all_summaries.append(type_summary)
+
+            df_assigned_reads.write_csv(
+                assigned_out, separator='\t',
+                include_header=True if first_batch else False)
+            first_batch = False
+
+            # Make a lookup dictionary for read name → assigned genome type
+            read_gtype = df_assigned_reads.with_columns(
+                pl.col('Assigned_genome_type')
+                .str.replace_all(' ', '_')
+                .str.to_lowercase()
+                .alias('Assigned_genome_type'))
+            gtype_lookup = dict(
+                zip(
+                    read_gtype["Read"].to_list(),
+                    read_gtype["Assigned_genome_type"].to_list()))
+
+            # Tag the BAM chunk and append to file
+            # This could be put on a separate thread if needed
+            for aln in bam_batch_iter:
+                gtype = gtype_lookup.get(aln.query_name, 'Non_transgene')
+                aln.set_tag('AV', gtype, value_type="Z")
+                bam_out.write(aln)
+
+        # Write aggregated summary after all batches processed
+        if all_summaries:
+            final_summary = (
+                pl.concat(all_summaries)
+                .group_by(['sample_id', 'Assigned_genome_type'])
+                .agg(pl.col('count').sum())
+                .with_columns(
+                    (pl.col('count') / pl.col('count').sum() * 100).round(2)
+                    .alias('percentage'))
+            )
+            final_summary.write_csv(args.output_plot_data, separator='\t')

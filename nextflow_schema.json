@@ -274,9 +274,15 @@
             "properties": {
                 "threads": {
                     "type": "integer",
-                    "default": 4,
+                    "default": 8,
                     "description": "Maximum number of CPU threads for a process to consume. Applies to the minimap2 mapping and the AAV structure determination stages.",
-                    "help_text": "A minimap2 and AAV structure determination process per sample will be will be run. This setting applies a maximum number of threads to be used for each of these."
+                    "help_text": "A minimap2 and AAV structure determination process per sample will be will be run. This setting applies a maximum number of threads to be used for each of these.",
+                    "overrides": {
+                        "epi2mecloud": {
+                            "hidden": true
+                        } 
+                   }
+ 
                 },
                 "disable_ping": {
                     "type": "boolean",
@@ -350,11 +356,11 @@
     },
     "resources": {
         "recommended": {
-            "cpus": 8,
+            "cpus": 16,
             "memory": "32GB"
         },
         "minimum": {
-            "cpus": 4,
+            "cpus": 8,
             "memory": "16GB"
         },
         "run_time": "15 minutes per sample - 150k reads and 8 cpus",

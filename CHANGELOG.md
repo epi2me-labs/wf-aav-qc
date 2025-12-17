@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v1.3.1]
 ### Changed
 - Updated to wf-template v5.7.0 to maintain compliance with our latest wf-template standard, changing:
   - Pipeline overview now appears before pipeline parameters in README.
@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated to Medaka v2.2.0 to:
   - Improve multithreading performance.
   - Support data from more recent basecalling models. 
+- Increased minimum and recommended CPUs to 8 and 16 respectively.
+- `aav_structures` process: major speed-up from improved BAM tagging implementation.
 ### Fixed
 - `polars.exceptions.ComputeError: could not parse '-1' as dtype 'u8'` error when reading BAM info TSV in `aav_structures` process.
 

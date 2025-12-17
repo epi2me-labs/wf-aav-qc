@@ -14,6 +14,7 @@ process medakaVersion {
     memory "2 GB"
     output:
         path "medaka_version.txt"
+    script:
     """
     medaka --version | sed 's/ /,/' >> "medaka_version.txt"
     """
@@ -81,13 +82,12 @@ process mask_transgene_reference {
     cpus 2
     memory "2 GB"
     input:
-        input:
-            path("aav_transgene_plasmid.fa")
-            val(transgene_plasmid_name)
-            val(itr_locs)
-        output:
-            path("itr_masked_transgene_plasmid.fasta"),
-            emit: masked_transgene_plasmid
+        path("aav_transgene_plasmid.fa")
+        val(transgene_plasmid_name)
+        val(itr_locs)
+    output:
+        path("itr_masked_transgene_plasmid.fasta"),
+        emit: masked_transgene_plasmid
     script:
     """
     workflow-glue mask_itrs \
@@ -165,6 +165,7 @@ process make_mmi_index {
         path "ref_genome.fasta"
     output:
         path "genome_index.mmi"
+    script:
     """
      minimap2 -t ${task.cpus} -I 16G -d genome_index.mmi ref_genome.fasta
     """
@@ -192,13 +193,13 @@ process map_to_combined_reference {
     // Keep two threads for samtools
     def mm2_threads = Math.max(task.cpus - 2, 1)
     """
+    # seqkit BAM needs BAM not SAM!, which explains the samtools view -hu 
     minimap2 -ax map-ont --secondary=no -t ${mm2_threads} \
         genome_index.mmi reads.fastq.gz \
-        | samtools sort - \
-            --write-index \
-            -o ${meta['alias']}_align.bam##idx##${meta['alias']}_align.bam.bai
-
-    seqkit bam ${meta['alias']}_align.bam 2> ${meta['alias']}_bam_info.tsv
+    | samtools view -hu - \
+    | tee >(samtools sort --write-index \
+        -o ${meta['alias']}_align.bam##idx##${meta['alias']}_align.bam.bai - ) \
+    | seqkit bam - 2> ${meta['alias']}_bam_info.tsv
     """
 }
 
@@ -265,8 +266,8 @@ process contamination {
 
 process aav_structures {
     label "wf_aav"
-    cpus params.threads
-    memory '4 GB'
+    cpus Math.min(params.threads, 16)
+    memory '15 GB'
     input:
         tuple val(meta),
               path("bam_info.tsv"),
@@ -284,14 +285,20 @@ process aav_structures {
         tuple val(meta),
               path("tagged_bams/"),
               emit: tagged_bams
+    script:
+        def polars_threads = Math.max(1, task.cpus - 2) 
+        def aux_threads = 3
+        
     """
-    export POLARS_MAX_THREADS=${task.cpus}
+    export POLARS_MAX_THREADS=${polars_threads}
+    mkdir tmp_bams
     mkdir tagged_bams
 
-    workflow-glue aav_structures \
-        --bam_info bam_info.tsv \
-        --bam_in sorted.bam \
-        --bam_out tagged_bams/sorted.tagged.bam \
+    # Sort BAM by name so supplementary records are contiguous in the file.
+    samtools sort -n -@ ${aux_threads} -u sorted.bam \
+    | workflow-glue aav_structures \
+        --bam_in - \
+        --bam_out - \
         --itr_locations \
             $itr_locs.itr1_start $itr_locs.itr1_end $itr_locs.itr2_start $itr_locs.itr2_end \
         --output_plot_data 'aav_structure_counts.tsv' \
@@ -301,17 +308,19 @@ process aav_structures {
         --itr_fl_threshold ${params.itr_fl_threshold} \
         --itr_backbone_threshold ${params.itr_backbone_threshold} \
         --symmetry_threshold ${params.symmetry_threshold} \
-        --threads ${params.threads}
-
-    cd tagged_bams
-
-    # The BAMs output by aav_structures.py will contain a AV:Z tag that tags an alignment with its assigned genome type
-    # If params.output_genometype_bams is true, then split these tagged BAMs by the AV tag
+    | { 
     if [ "${params.output_genometype_bams}" == "true" ]; then
-        samtools split -d AV -@${task.cpus} sorted.tagged.bam
-        rm sorted.tagged.bam
+        samtools split -@ ${aux_threads} -d AV -f 'tmp_bams/%!.bam' -
+        for bam in tmp_bams/*.bam; do
+            base="tagged_bams/\$(basename \$bam)"
+            samtools sort --write-index -o "\${base}##idx##\${base}.bai" -@ ${aux_threads} \${bam}
+        done
+        rm -rf tmp_bams
+    else
+        samtools sort --write-index \
+            -o "tagged_bams/sorted.tagged.bam##idx##tagged_bams/sorted.tagged.bam.bai" -@ ${aux_threads} -
     fi
-    samtools index -M *.bam
+    }
     """
 }
 
@@ -332,6 +341,7 @@ process itr_coverage {
         val(itr_locs)
     output:
         path('itr_coverage_trimmed.tsv')
+    script:
     """
     # mapping to forward strand
     samtools view -h -F 16 -h align.bam ${transgene_plasmid_name} \
@@ -555,8 +565,8 @@ workflow pipeline {
                 igv_paths,
                 transgene_plasmid_name,
                 [displayMode: "SQUISHED", colorBy: "strand"],
-                 Channel.of(null), // Variant extra opts
-                 Channel.of(false)) // Keep track order
+                 channel.of(null), // Variant extra opts
+                 channel.of(false)) // Keep track order
          }
 
         metadata = for_report.meta.collect()

@@ -25,12 +25,12 @@ does some basic quality control checks. The main stages of the workflow are:
 
 Recommended requirements:
 
-+ CPUs = 8
++ CPUs = 16
 + Memory = 32GB
 
 Minimum requirements:
 
-+ CPUs = 4
++ CPUs = 8
 + Memory = 16GB
 
 Approximate run time: 15 minutes per sample - 150k reads and 8 cpus
@@ -90,7 +90,7 @@ tar -xzvf wf-aav-qc-demo.tar.gz
 The workflow can then be run with the downloaded demo data using:
 ```
 nextflow run epi2me-labs/wf-aav-qc \
-	--fastq 'wf-aav-qc-demo/simulated_reads.fq' \
+	--fastq 'wf-aav-qc-demo/fastq' \
 	--itr1_end 156 \
 	--itr1_start 11 \
 	--itr2_end 2286 \
@@ -287,7 +287,7 @@ If --gtype_bams is set to `true`, these tagged BAMs are split on this tag into s
 
 | Nextflow parameter name  | Type | Description | Help | Default |
 |--------------------------|------|-------------|------|---------|
-| threads | integer | Maximum number of CPU threads for a process to consume. Applies to the minimap2 mapping and the AAV structure determination stages. | A minimap2 and AAV structure determination process per sample will be will be run. This setting applies a maximum number of threads to be used for each of these. | 4 |
+| threads | integer | Maximum number of CPU threads for a process to consume. Applies to the minimap2 mapping and the AAV structure determination stages. | A minimap2 and AAV structure determination process per sample will be will be run. This setting applies a maximum number of threads to be used for each of these. | 8 |
 
 
 

@@ -46,7 +46,7 @@ tar -xzvf wf-aav-qc-demo.tar.gz
 The workflow can then be run with the downloaded demo data using:
 ```
 nextflow run epi2me-labs/wf-aav-qc \
-	--fastq 'wf-aav-qc-demo/simulated_reads.fq' \
+	--fastq 'wf-aav-qc-demo/fastq' \
 	--itr1_end 156 \
 	--itr1_start 11 \
 	--itr2_end 2286 \
